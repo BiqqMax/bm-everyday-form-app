@@ -1,90 +1,240 @@
+README.md
+
 # Everyday Forms
 
-Minimal production-oriented scaffold for an educational forms platform built with Next.js App Router, TypeScript, Tailwind CSS and Supabase (not integrated yet).
+A modern open-source form platform built for teachers, schools, and educational communities.
 
-Quick start
+Everyday Forms helps teachers create forms, collect student submissions, manage attendance, and organize classroom workflows without relying on paper forms.
+
+Built with a strong focus on:
+- simplicity
+- security
+- accessibility
+- mobile-first experience
+- clean UX
+
+---
+
+# ✨ Features
+
+## Current Features
+- Teacher authentication
+- Google Sign-In
+- Dynamic form builder
+- Public form sharing
+- QR code sharing
+- Submission management
+- CSV export
+- Dark / Light theme
+- Mobile responsive dashboard
+- Analytics support
+- Privacy-focused architecture
+
+---
+
+# 🚀 Tech Stack
+
+## Frontend
+- Next.js
+- TypeScript
+- Tailwind CSS
+
+## Backend
+- Supabase
+- PostgreSQL
+
+## Authentication
+- Supabase Auth
+- Google OAuth
+
+## Analytics
+- Mixpanel
+
+## Deployment
+- Vercel
+
+---
+
+# 🎯 Project Goals
+
+Everyday Forms is designed to:
+- reduce paper usage in schools
+- simplify attendance collection
+- make classroom data collection easier
+- provide a free and open alternative for educators
+
+The goal is to keep the platform:
+- lightweight
+- fast
+- accessible
+- easy to contribute to
+
+---
+
+# 📦 Installation
+
+Clone the repository:
+
+```bash
+git clone https://github.com/BiqqMax/bm-everyday-form-app.git
+```
+
+Move into the project folder:
+
+```bash
+cd everyday-forms
+```
+
+Install dependencies:
 
 ```bash
 npm install
-npm run dev
 ```
 
-What this scaffold includes
-- App Router layout with a `ThemeProvider` (light/dark via `.dark` class)
-- Tailwind CSS + design tokens mapped to CSS variables
-- Reusable UI primitives: `Button`, `Card`, `Input`, `Skeleton`, `Modal`
-- Loading (`app/loading.tsx`) and global error boundary (`app/error.tsx`)
-- Shared TypeScript types in `lib/types/forms.ts`
-- Small validators in `lib/utils/validators.ts`
-
-Next steps
-- Integrate Supabase securely on the server (service role key must never be exposed client-side)
-- Add authentication and Row Level Security (RLS) policies
-- Scaffold Forms CRUD and Submissions UI and server APIs
-
-Design decisions
-- CSS variables are used for tokens to keep parity with mobile platforms (Flutter)
-- `use client` is applied only where interactivity is required to maximize server components
-- Minimal dependencies to keep the surface area small and portable
-# Everyday Forms — Developer README
-
-Quick start (after cloning):
-
-```bash
-npm install
-npm run dev
-```
-
-What this scaffold includes:
-- Next.js App Router + TypeScript
-- Tailwind CSS with design tokens (light/dark)
-- `ThemeProvider` (class-based `.dark`) and theme toggle
-- Reusable UI primitives: `Button`, `Card`, `Input`, `Skeleton`, `Modal`
-- App-level `loading` skeleton and `error` boundary
-- Shared types: `Form`, `Submission`
-
-Security & architecture notes:
-- No secrets or Supabase integration yet — will be added server-side only.
-- Design tokens use CSS variables to keep portability to other platforms.
-- Prefer server components; client components use `"use client"` only when needed.
-
-Next steps:
-- Wire dashboard and forms CRUD pages
-- Integrate Supabase with server-side service key stored as secret
-- Add RLS and server endpoints for submission handling
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
-
-## Getting Started
-
-First, run the development server:
+Run development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+# 🔑 Environment Variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Create a `.env.local` file:
 
-## Learn More
+```env
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+NEXT_MIXPANEL_TOKEN=
+```
 
-To learn more about Next.js, take a look at the following resources:
+Never expose:
+- Supabase service role key
+- OAuth secrets
+- private credentials
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+# 🔐 Security
 
-## Deploy on Vercel
+Security is a core priority of this project.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Implemented security practices include:
+- Supabase Row Level Security (RLS)
+- secure authentication flows
+- protected server-side routes
+- input validation
+- secure environment handling
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+# 📱 Design Principles
+
+Everyday Forms follows:
+- mobile-first responsive design
+- accessibility-first UI
+- minimal interface philosophy
+- consistent spacing system
+- cross-platform portability
+
+The design system is intentionally simple to support future Flutter/mobile implementations.
+
+---
+
+# 🧠 Philosophy
+
+This project avoids unnecessary complexity.
+
+The focus is:
+- reliable workflows
+- clean user experience
+- practical educational use cases
+
+Not:
+- flashy UI
+- overengineered systems
+- unnecessary features
+
+---
+
+# 🛣️ Planned Features
+
+Potential future improvements:
+- attendance mode
+- response limits
+- form expiration
+- multi-language support
+- organization/school workspaces
+- mobile app
+- offline support
+
+---
+
+# 🤝 Contributing
+
+Contributions are welcome.
+
+Please:
+- keep code clean and modular
+- follow the design system
+- maintain accessibility standards
+- prioritize security and simplicity
+
+Before major changes:
+- open an issue
+- discuss architecture decisions first
+
+---
+
+# 📄 Legal
+
+This project includes:
+- Privacy Policy
+- Terms of Service
+
+Contributors should avoid introducing features that compromise:
+- user privacy
+- security
+- accessibility
+
+---
+
+# ❤️ Support the Project
+
+If you find this project useful, consider supporting development.
+
+Support options may include:
+- Flutterwave
+- GitHub Sponsors
+- Buy Me a Coffee
+
+Support helps maintain:
+- hosting
+- development
+- future improvements
+
+---
+
+# 📬 Support
+
+For issues, suggestions, or questions:
+- open a GitHub issue
+- use the support page inside the app
+
+---
+
+# 📜 License
+
+MIT License
+
+You are free to:
+- use
+- modify
+- distribute
+
+with attribution.
+
+---
+
+Built for educators and students.
