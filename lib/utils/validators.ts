@@ -14,12 +14,3 @@ export function sanitize(value: string) {
   // Minimal sanitizer: strip script tags and trim. Do not rely on this for security server-side.
   return value.replace(/<script[^>]*>([\s\S]*?)<\/script>/gi, "").trim();
 }
-
-export function minLength(value: string, n: number) {
-  return typeof value === "string" && value.trim().length >= n;
-}
-
-export function sanitize(value: string) {
-  // Minimal sanitizer: trim and remove control characters
-  return value.replace(/[\x00-\x1F\x7F]/g, "").trim();
-}
