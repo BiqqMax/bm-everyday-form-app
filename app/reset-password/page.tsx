@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { type FormEvent, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { type FormEvent, useMemo, useState } from "react";
 
 import { AuthShell } from "../../components/auth/AuthShell";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
+import { getPasswordResetCompleteTransitionUrl } from "../../lib/auth/flow";
 import { getBrowserSupabaseClient } from "../../lib/supabase/client";
 import { isStrongEnoughPassword, normalizePassword, sanitizeAuthInput } from "../../lib/utils/validators";
 
@@ -23,12 +24,21 @@ function Banner({ tone, children }: { tone: BannerTone; children: string }) {
 
 export default function ResetPasswordPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = getBrowserSupabaseClient();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const helperText = useMemo(() => {
+    if (searchParams.get("recovery") === "success") {
+      return "Your recovery code is verified. Choose a new password to finish securing the account.";
+    }
+
+    return "Choose a strong password you can use to sign in again. After saving, we will end the recovery session and return you to sign in.";
+  }, [searchParams]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -54,30 +64,29 @@ export default function ResetPasswordPage() {
       password: normalizedPassword,
     });
 
-    setIsSubmitting(false);
-
     if (updateError) {
       setError(updateError.message);
+      setIsSubmitting(false);
       return;
     }
 
     await supabase.auth.signOut();
     setMessage("Password updated successfully. Please sign in again with your new password.");
-    router.replace("/login?message=Password%20updated%20successfully");
+    router.replace(getPasswordResetCompleteTransitionUrl());
     router.refresh();
   }
 
   return (
     <AuthShell
       title="Set a new password"
-      description="Choose a strong password you can use to sign in again. After saving, we will end the recovery session and return you to sign in."
+      description={helperText}
       footer={
         <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
           <Link href="/login" className="font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
             Back to sign in
           </Link>
           <Link href="/forgot-password" className="font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
-            Request a new link
+            Request a new code
           </Link>
         </div>
       }

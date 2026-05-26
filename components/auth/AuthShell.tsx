@@ -6,7 +6,7 @@ import Card, { CardContent, CardDescription, CardHeader, CardTitle } from "../ui
 
 interface AuthShellProps {
   title: string;
-  description: string;
+  description?: string;
   children: ReactNode;
   footer?: ReactNode;
 }
@@ -25,7 +25,7 @@ export function AuthShell({ title, description, children, footer }: AuthShellPro
             <Card className="border-border/70 bg-card shadow-sm">
               <CardHeader className="space-y-3">
                 <CardTitle className="text-2xl font-semibold tracking-tight">{title}</CardTitle>
-                <CardDescription className="text-sm leading-6 text-muted-foreground">{description}</CardDescription>
+                {description ? <CardDescription className="text-sm leading-6 text-muted-foreground">{description}</CardDescription> : null}
               </CardHeader>
               <CardContent className="space-y-6">{children}</CardContent>
             </Card>

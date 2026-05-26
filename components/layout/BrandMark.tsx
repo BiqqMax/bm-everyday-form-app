@@ -27,7 +27,18 @@ function CompactBrandMark() {
 }
 
 function FullBrandMark() {
-  return <Image src="/logo.svg" alt="" width={320} height={64} className="h-10 w-auto" aria-hidden="true" />;
+  return (
+    <Image
+      src="/logo.svg"
+      alt=""
+      width={320}
+      height={64}
+      className="h-10 w-auto"
+      aria-hidden="true"
+      priority
+      loading="eager"
+    />
+  );
 }
 
 export default function BrandMark({

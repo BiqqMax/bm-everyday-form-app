@@ -3,7 +3,7 @@ import Script from 'next/script';
 import type { ReactNode } from 'react';
 
 import ThemeProvider from '../components/theme/ThemeProvider';
-import SiteFooter from '../components/layout/SiteFooter';
+import AppShell from '../components/layout/AppShell';
 import './globals.css';
 
 const themeBootstrap = `
@@ -70,10 +70,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen bg-background text-foreground antialiased">
         <ThemeProvider>
-          <div className="flex min-h-screen flex-col">
-            <div className="flex-1">{children}</div>
-            <SiteFooter />
-          </div>
+          <AppShell>{children}</AppShell>
         </ThemeProvider>
       </body>
     </html>

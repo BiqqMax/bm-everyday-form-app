@@ -188,6 +188,49 @@ html.dark {
     animation: hero-highlight-drift 7s ease-in-out infinite;
     pointer-events: none;
   }
+
+  .auth-fade {
+    animation: auth-fade 2200ms ease-in-out infinite;
+  }
+
+  .auth-progress {
+    animation: auth-progress 1800ms ease-in-out infinite;
+    transform-origin: left;
+  }
+}
+
+@keyframes auth-progress {
+  0% {
+    transform: scaleX(0.12);
+    opacity: 0.45;
+  }
+
+  50% {
+    transform: scaleX(0.72);
+    opacity: 0.85;
+  }
+
+  100% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+
+@keyframes auth-fade {
+  0% {
+    opacity: 0.55;
+    transform: translateY(4px);
+  }
+
+  50% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  100% {
+    opacity: 0.55;
+    transform: translateY(4px);
+  }
 }
 
 @keyframes hero-reveal {

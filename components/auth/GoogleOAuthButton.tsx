@@ -2,12 +2,15 @@
 
 import { useState } from "react";
 
-import Button from "../ui/Button";
+import { getAuthNextRoute, type AuthFlow } from "../../lib/auth/flow";
 import { createClient } from "../../lib/supabase/client";
+import Button from "../ui/Button";
 
 type GoogleOAuthButtonProps = {
   label?: string;
   className?: string;
+  flow?: AuthFlow;
+  nextPath?: string;
 };
 
 function GoogleIcon() {
@@ -33,7 +36,12 @@ function GoogleIcon() {
   );
 }
 
-export function GoogleOAuthButton({ label = "Continue with Google", className = "" }: GoogleOAuthButtonProps) {
+export function GoogleOAuthButton({
+  label = "Continue with Google",
+  className = "",
+  flow = "login",
+  nextPath,
+}: GoogleOAuthButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,7 +50,12 @@ export function GoogleOAuthButton({ label = "Continue with Google", className = 
     setIsLoading(true);
 
     const supabase = createClient();
-    const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/auth/callback?next=/dashboard` : undefined;
+    const targetPath = nextPath ?? getAuthNextRoute(flow);
+
+    const redirectTo =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(targetPath)}`
+        : undefined;
 
     const { error: signInError } = await supabase.auth.signInWithOAuth({
       provider: "google",

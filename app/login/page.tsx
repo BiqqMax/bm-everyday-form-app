@@ -8,6 +8,7 @@ import { AuthShell } from "../../components/auth/AuthShell";
 import { GoogleOAuthButton } from "../../components/auth/GoogleOAuthButton";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
+import { DASHBOARD_ROUTE, getAuthVerifyUrl } from "../../lib/auth/flow";
 import { createClient } from "../../lib/supabase/client";
 
 export default function LoginPage() {
@@ -33,9 +34,11 @@ export default function LoginPage() {
     setError(null);
     setIsSubmitting(true);
 
+    const emailValue = email.trim();
     const supabase = createClient();
+
     const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
+      email: emailValue,
       password,
     });
 
@@ -45,7 +48,25 @@ export default function LoginPage() {
       return;
     }
 
-    router.replace("/dashboard");
+    await supabase.auth.signOut();
+
+    const redirectTo =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(DASHBOARD_ROUTE)}`
+        : undefined;
+
+    const { error: otpError } = await supabase.auth.signInWithOtp({
+      email: emailValue,
+      options: redirectTo ? { emailRedirectTo: redirectTo } : undefined,
+    });
+
+    if (otpError) {
+      setError(otpError.message);
+      setIsSubmitting(false);
+      return;
+    }
+
+    router.replace(getAuthVerifyUrl("login", emailValue, DASHBOARD_ROUTE));
     router.refresh();
   }
 
@@ -63,7 +84,7 @@ export default function LoginPage() {
       }
     >
       <div className="space-y-4">
-        <GoogleOAuthButton />
+        <GoogleOAuthButton flow="login" nextPath={DASHBOARD_ROUTE} />
         <div className="relative flex items-center">
           <div className="h-px flex-1 bg-border" />
           <span className="px-3 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">or</span>

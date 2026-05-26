@@ -1,20 +1,19 @@
-import BrandMark from '../components/layout/BrandMark';
-import Container from '../components/layout/Container';
-import Skeleton from '../components/ui/Skeleton';
+import BrandMark from "../components/layout/BrandMark";
 
 export default function Loading() {
   return (
-    <main className="min-h-screen bg-[var(--background)]">
-      <Container className="flex min-h-screen flex-col items-center justify-center gap-8 py-12">
-        <BrandMark compact showText={false} />
-        <div className="w-full max-w-3xl space-y-4">
-          <Skeleton className="h-8 w-56" />
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Skeleton className="h-40" />
-            <Skeleton className="h-40" />
+    <main className="flex min-h-screen items-center justify-center bg-background px-4 text-foreground">
+      <div className="flex w-full max-w-sm flex-col items-center gap-6">
+        <div className="auth-fade">
+          <BrandMark className="justify-center" />
+        </div>
+
+        <div className="w-full max-w-xs">
+          <div className="h-2 overflow-hidden rounded-full border border-[var(--border)] bg-[var(--surface-subtle)]" aria-hidden="true">
+            <div className="auth-progress h-full w-full origin-left rounded-full bg-[var(--accent)]" />
           </div>
         </div>
-      </Container>
+      </div>
     </main>
   );
 }

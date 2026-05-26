@@ -1,4 +1,4 @@
-import type { HTMLAttributes, ReactNode } from 'react';
+import type { ElementType, HTMLAttributes, ReactNode } from 'react';
 import { forwardRef } from 'react';
 
 type CardProps = HTMLAttributes<HTMLDivElement> & {
@@ -34,8 +34,12 @@ export function CardTitle({ className = '', ...props }: HTMLAttributes<HTMLHeadi
   return <h3 className={joinClasses('text-base font-semibold tracking-tight text-foreground', className)} {...props} />;
 }
 
-export function CardDescription({ className = '', ...props }: HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={joinClasses('text-sm leading-6 text-muted', className)} {...props} />;
+type CardDescriptionProps = HTMLAttributes<HTMLElement> & {
+  as?: ElementType;
+};
+
+export function CardDescription({ className = '', as: Element = 'p', ...props }: CardDescriptionProps) {
+  return <Element className={joinClasses('text-sm leading-6 text-muted', className)} {...props} />;
 }
 
 export function CardContent({ className = '', ...props }: HTMLAttributes<HTMLDivElement>) {

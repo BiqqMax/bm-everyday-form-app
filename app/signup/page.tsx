@@ -8,6 +8,11 @@ import { AuthShell } from "../../components/auth/AuthShell";
 import { GoogleOAuthButton } from "../../components/auth/GoogleOAuthButton";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
+import {
+  ONBOARDING_ROUTE,
+  getAuthTransitionUrl,
+  getAuthVerifyUrl,
+} from "../../lib/auth/flow";
 import { createClient } from "../../lib/supabase/client";
 
 export default function SignupPage() {
@@ -31,12 +36,16 @@ export default function SignupPage() {
     }
 
     setIsSubmitting(true);
+
+    const emailValue = email.trim();
     const supabase = createClient();
     const redirectTo =
-      typeof window !== "undefined" ? `${window.location.origin}/auth/callback?next=/dashboard` : undefined;
+      typeof window !== "undefined"
+        ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(ONBOARDING_ROUTE)}`
+        : undefined;
 
     const { data, error: signUpError } = await supabase.auth.signUp({
-      email: email.trim(),
+      email: emailValue,
       password,
       options: redirectTo ? { emailRedirectTo: redirectTo } : undefined,
     });
@@ -48,17 +57,17 @@ export default function SignupPage() {
     }
 
     if (data.session) {
-      router.replace("/dashboard");
+      router.replace(getAuthTransitionUrl(ONBOARDING_ROUTE));
       router.refresh();
       return;
     }
 
-    setMessage("Check your inbox for a one-time verification link to finish creating your account.");
-    setIsSubmitting(false);
+    router.replace(getAuthVerifyUrl("signup", emailValue, ONBOARDING_ROUTE));
+    router.refresh();
   }
 
   return (
-      <AuthShell
+    <AuthShell
       title="Create your account"
       description="Join the easiest way to build, manage, and share forms."
       footer={
@@ -71,7 +80,7 @@ export default function SignupPage() {
       }
     >
       <div className="space-y-4">
-        <GoogleOAuthButton label="Continue with Google" />
+        <GoogleOAuthButton label="Continue with Google" flow="signup" nextPath={ONBOARDING_ROUTE} />
         <div className="relative flex items-center">
           <div className="h-px flex-1 bg-border" />
           <span className="px-3 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">or</span>
