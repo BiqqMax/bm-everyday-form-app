@@ -24,14 +24,14 @@ const featureItems: FeatureItem[] = [
     points: ['Plain field names', 'Consistent order', 'Less guesswork'],
   },
   {
+    title: 'Easy to share',
+    description: 'Share forms with a link or QR code without extra steps.',
+    points: ['Copy a link', 'Share a QR code', 'Set access'],
+  },
+  {
     title: 'Responses in one place',
     description: 'Keep submissions together and easy to review.',
     points: ['One clear list', 'Quick sorting', 'Easy handoff'],
-  },
-  {
-    title: 'Easy to share',
-    description: 'Share forms with the right people without extra steps.',
-    points: ['Copy a link', 'Set access', 'Reuse anytime'],
   },
 ];
 

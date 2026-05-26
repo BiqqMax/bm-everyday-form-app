@@ -44,9 +44,9 @@ const featureGroups: FeatureGroup[] = [
   {
     title: 'Publishing & Sharing',
     description: 'Publish forms through straightforward sharing options without adding unnecessary complexity.',
-    points: ['Shareable links', 'Controlled access', 'Easy distribution to the right people'],
+    points: ['Shareable links', 'QR code sharing', 'Controlled access'],
     previewTitle: 'Sharing panel',
-    previewRows: ['Public link', 'Restricted access', 'Copy link'],
+    previewRows: ['Public link', 'QR code', 'Restricted access'],
   },
   {
     title: 'Workspace Settings',
