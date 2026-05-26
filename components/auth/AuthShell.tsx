@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import Link from "next/link";
+
 import BrandMark from "../layout/BrandMark";
 import ThemeToggle from "../theme/ThemeToggle";
 import Card, { CardContent, CardDescription, CardHeader, CardTitle } from "../ui/Card";
@@ -11,19 +13,25 @@ interface AuthShellProps {
   footer?: ReactNode;
 }
 
+function HomeLink() {
+  return (
+    <Link
+      href="/"
+      className="inline-flex items-center gap-2 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm font-semibold tracking-tight text-foreground shadow-[var(--shadow)] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
+      aria-label="Everyday Forms home"
+    >
+      <span aria-hidden="true">←</span>
+      <span>Back to home</span>
+    </Link>
+  );
+}
+
 export function AuthShell({ title, description, children, footer }: AuthShellProps) {
   return (
     <main className="min-h-screen bg-background text-foreground">
       <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-4 sm:px-6 lg:px-8">
         <header className="flex items-center justify-between gap-4">
-          <div className="flex items-center">
-            <div className="sm:hidden">
-              <BrandMark compact showText={false} />
-            </div>
-            <div className="hidden sm:block">
-              <BrandMark href="/" />
-            </div>
-          </div>
+          <BrandMark href="/" />
           <ThemeToggle />
         </header>
 
@@ -39,12 +47,13 @@ export function AuthShell({ title, description, children, footer }: AuthShellPro
 
             {footer ? (
               <footer className="mt-4 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] px-4 py-4 shadow-[var(--shadow)]">
-                <div className="mb-3 flex items-center justify-center">
-                  <BrandMark compact showText={false} />
-                </div>
                 {footer}
               </footer>
             ) : null}
+
+            <div className="mt-4 flex justify-center">
+              <HomeLink />
+            </div>
           </div>
         </div>
       </div>
