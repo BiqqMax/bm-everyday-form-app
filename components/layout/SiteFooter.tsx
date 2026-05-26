@@ -89,19 +89,14 @@ function Icon({ name }: { name: SocialLink['icon'] }) {
 function FooterLinkGroup({
   title,
   links,
-  align = 'left',
 }: {
   title: string;
   links: ReadonlyArray<{ href: string; label: string }>;
-  align?: 'left' | 'right';
 }) {
   return (
-    <div className={`space-y-3 ${align === 'right' ? 'sm:text-right' : ''}`.trim()}>
+    <div className="space-y-3">
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">{title}</p>
-      <nav
-        aria-label={title}
-        className={`flex flex-col gap-2 text-sm text-muted ${align === 'right' ? 'sm:items-end' : ''}`.trim()}
-      >
+      <nav aria-label={title} className="flex flex-col gap-2 text-sm text-muted">
         {links.map((link) => (
           <Link key={link.href} href={link.href} className="transition-colors hover:text-foreground">
             {link.label}
@@ -131,8 +126,8 @@ export default function SiteFooter() {
   return (
     <footer className="border-t border-[var(--border)] bg-background">
       <Container className="py-8 sm:py-10">
-        <div className="grid gap-10 md:grid-cols-2 xl:grid-cols-3 xl:items-start">
-          <div className="space-y-5 md:col-span-2 xl:col-span-1">
+        <div className="space-y-8">
+          <div className="space-y-4">
             <BrandMark className="shrink-0" />
             <p className="max-w-md text-sm leading-6 text-muted">
               Everyday Forms keeps routine work clear, dependable, and easy to return to.
@@ -146,14 +141,10 @@ export default function SiteFooter() {
                 ))}
               </div>
             </div>
-          </div>
 
-          <div className="grid gap-8 md:col-span-2 md:grid-cols-2 xl:contents">
-            <div className="xl:col-span-1">
+            <div className="flex flex-col gap-6 pt-1 sm:flex-row sm:gap-10">
               <FooterLinkGroup title="Quick links" links={quickLinks} />
-            </div>
-            <div className="xl:col-span-1">
-              <FooterLinkGroup title="Legal" links={legalLinks} align="right" />
+              <FooterLinkGroup title="Legal" links={legalLinks} />
             </div>
           </div>
         </div>
