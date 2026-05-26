@@ -1,7 +1,5 @@
 import type { ReactNode } from "react";
 
-import Link from "next/link";
-
 import BrandMark from "../layout/BrandMark";
 import ThemeToggle from "../theme/ThemeToggle";
 import Card, { CardContent, CardDescription, CardHeader, CardTitle } from "../ui/Card";
@@ -11,19 +9,6 @@ interface AuthShellProps {
   description: string;
   children: ReactNode;
   footer?: ReactNode;
-}
-
-function HomeLink() {
-  return (
-    <Link
-      href="/"
-      className="inline-flex items-center gap-2 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm font-semibold tracking-tight text-foreground shadow-[var(--shadow)] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
-      aria-label="Everyday Forms home"
-    >
-      <span aria-hidden="true">←</span>
-      <span>Back to home</span>
-    </Link>
-  );
 }
 
 export function AuthShell({ title, description, children, footer }: AuthShellProps) {
@@ -50,10 +35,6 @@ export function AuthShell({ title, description, children, footer }: AuthShellPro
                 {footer}
               </footer>
             ) : null}
-
-            <div className="mt-4 flex justify-center">
-              <HomeLink />
-            </div>
           </div>
         </div>
       </div>
