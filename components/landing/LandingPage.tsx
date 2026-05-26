@@ -142,27 +142,6 @@ function UseCasesSection() {
   );
 }
 
-function FooterGroup({
-  title,
-  links,
-}: {
-  title: string;
-  links: Array<{ href: string; label: string }>;
-}) {
-  return (
-    <div className="space-y-3">
-      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">{title}</p>
-      <div className="flex flex-col gap-2 text-sm text-muted">
-        {links.map((link) => (
-          <Link key={link.href} href={link.href} className="transition-colors hover:text-foreground">
-            {link.label}
-          </Link>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 export function LandingPage() {
   return (
     <div className="min-h-screen bg-background text-foreground">

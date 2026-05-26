@@ -78,22 +78,11 @@ const interfacePoints = [
   'Balanced information density without clutter',
 ];
 
-function SectionHeading({
-  eyebrow,
-  title,
-  description,
-}: {
-  eyebrow: string;
-  title: string;
-  description: string;
-}) {
+function SectionHeading({ title, description }: { title: string; description: string }) {
   return (
-    <div className="space-y-3">
-      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">{eyebrow}</p>
-      <div className="space-y-2">
-        <h1 className="max-w-3xl text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">{title}</h1>
-        <p className="max-w-2xl text-sm leading-7 text-muted sm:text-base">{description}</p>
-      </div>
+    <div className="space-y-2">
+      <h1 className="max-w-3xl text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">{title}</h1>
+      <p className="max-w-2xl text-sm leading-7 text-muted sm:text-base">{description}</p>
     </div>
   );
 }
@@ -154,7 +143,6 @@ export default function FeaturesPage() {
           <Container className="py-14 sm:py-16 lg:py-20">
             <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-center">
               <SectionHeading
-                eyebrow="Features"
                 title="Structured tools for everyday form work."
                 description="Everyday Forms helps teams create forms, review responses, organize work, and keep routine workflows clear without adding unnecessary weight."
               />
@@ -186,7 +174,6 @@ export default function FeaturesPage() {
           <Container className="py-10 sm:py-12">
             <div className="space-y-6">
               <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">Core feature groups</p>
                 <h2 className="max-w-3xl text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
                   Practical capabilities arranged around the full form lifecycle.
                 </h2>
@@ -207,7 +194,6 @@ export default function FeaturesPage() {
               <Card className="border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow)]">
                 <div className="space-y-4 p-5">
                   <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">Authentication & security</p>
                     <h2 className="text-lg font-semibold tracking-tight text-foreground">Access stays controlled and predictable.</h2>
                   </div>
                   <ul className="space-y-2">
@@ -224,7 +210,6 @@ export default function FeaturesPage() {
               <Card className="border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow)]">
                 <div className="space-y-4 p-5">
                   <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">Interface experience</p>
                     <h2 className="text-lg font-semibold tracking-tight text-foreground">The UI stays calm in both themes.</h2>
                   </div>
                   <ul className="space-y-2">
@@ -246,7 +231,6 @@ export default function FeaturesPage() {
             <Card className="border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow)]">
               <div className="grid gap-6 p-6 sm:p-7 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
                 <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">Next step</p>
                   <h2 className="max-w-2xl text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
                     Explore the pages, then use the workspace when you need a dependable process.
                   </h2>

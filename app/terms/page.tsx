@@ -17,22 +17,11 @@ const termsPoints = [
   'Follow product-specific usage limits and policies',
 ];
 
-function SectionHeading({
-  eyebrow,
-  title,
-  description,
-}: {
-  eyebrow: string;
-  title: string;
-  description: string;
-}) {
+function SectionHeading({ title, description }: { title: string; description: string }) {
   return (
-    <div className="space-y-3">
-      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">{eyebrow}</p>
-      <div className="space-y-2">
-        <h1 className="max-w-3xl text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">{title}</h1>
-        <p className="max-w-2xl text-sm leading-7 text-muted sm:text-base">{description}</p>
-      </div>
+    <div className="space-y-2">
+      <h1 className="max-w-3xl text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">{title}</h1>
+      <p className="max-w-2xl text-sm leading-7 text-muted sm:text-base">{description}</p>
     </div>
   );
 }
@@ -60,7 +49,6 @@ export default function TermsPage() {
           <Container className="py-14 sm:py-16 lg:py-20">
             <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-center">
               <SectionHeading
-                eyebrow="Terms"
                 title="Simple terms for using Everyday Forms."
                 description="These terms outline the basic expectations for using the product safely, respectfully, and in line with your workspace responsibilities."
               />
@@ -104,7 +92,6 @@ export default function TermsPage() {
             <Card className="border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow)]">
               <div className="grid gap-6 p-6 sm:p-7 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
                 <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">Questions?</p>
                   <h2 className="max-w-2xl text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
                     Contact support if you need help understanding these terms.
                   </h2>

@@ -35,22 +35,11 @@ const engineeringPrinciples = [
 
 const audiences = ['Schools', 'Businesses', 'Registration Centres', 'Admin Teams', 'Individuals'];
 
-function SectionHeading({
-  eyebrow,
-  title,
-  description,
-}: {
-  eyebrow: string;
-  title: string;
-  description: string;
-}) {
+function SectionHeading({ title, description }: { title: string; description: string }) {
   return (
-    <div className="space-y-3">
-      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">{eyebrow}</p>
-      <div className="space-y-2">
-        <h1 className="max-w-3xl text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">{title}</h1>
-        <p className="max-w-2xl text-sm leading-7 text-muted sm:text-base">{description}</p>
-      </div>
+    <div className="space-y-2">
+      <h1 className="max-w-3xl text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">{title}</h1>
+      <p className="max-w-2xl text-sm leading-7 text-muted sm:text-base">{description}</p>
     </div>
   );
 }
@@ -78,7 +67,6 @@ export default function AboutPage() {
           <Container className="py-14 sm:py-16 lg:py-20">
             <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-center">
               <SectionHeading
-                eyebrow="About"
                 title="Practical workflow software built for steady everyday use."
                 description="Everyday Forms focuses on clear structure, dependable operations, and interfaces that stay easy to trust over time."
               />
@@ -106,7 +94,6 @@ export default function AboutPage() {
               <Card className="border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow)]">
                 <div className="space-y-4 p-5">
                   <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">Product philosophy</p>
                     <h2 className="text-lg font-semibold tracking-tight text-foreground">The product stays centered on clarity.</h2>
                   </div>
                   <BulletList items={philosophyPoints} />
@@ -116,7 +103,6 @@ export default function AboutPage() {
               <Card className="border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow)]">
                 <div className="space-y-4 p-5">
                   <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">Who it’s for</p>
                     <h2 className="text-lg font-semibold tracking-tight text-foreground">Built for teams and individuals who need dependable workflows.</h2>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -141,7 +127,6 @@ export default function AboutPage() {
               <Card className="border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow)]">
                 <div className="space-y-4 p-5">
                   <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">Design principles</p>
                     <h2 className="text-lg font-semibold tracking-tight text-foreground">Interfaces should be easy to scan and easy to return to.</h2>
                   </div>
                   <BulletList items={designPrinciples} />
@@ -151,7 +136,6 @@ export default function AboutPage() {
               <Card className="border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow)]">
                 <div className="space-y-4 p-5">
                   <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">Engineering principles</p>
                     <h2 className="text-lg font-semibold tracking-tight text-foreground">The system is built to remain maintainable.</h2>
                   </div>
                   <BulletList items={engineeringPrinciples} />
@@ -166,7 +150,6 @@ export default function AboutPage() {
             <Card className="border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow)]">
               <div className="grid gap-6 p-6 sm:p-7 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
                 <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">Long-term direction</p>
                   <h2 className="max-w-2xl text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
                     Dependable workflow infrastructure for everyday operations.
                   </h2>
