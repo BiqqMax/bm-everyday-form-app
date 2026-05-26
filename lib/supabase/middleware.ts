@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
-import { getSupabaseEnv } from "./env";
+import { supabaseAnonKey, supabaseUrl } from "./env";
 
 export async function updateSession(request: NextRequest) {
   const response = NextResponse.next({
@@ -9,15 +9,14 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  const { url, anonKey } = getSupabaseEnv();
-  const supabase = createServerClient(url, anonKey, {
+  const supabase = createServerClient(supabaseUrl!, supabaseAnonKey!, {
     cookies: {
       getAll() {
         return request.cookies.getAll();
       },
-      setAll(cookiesToSet) {
+      setAll(cookiesToSet: Array<{ name: string; value: string; options: CookieOptions }>) {
         cookiesToSet.forEach(({ name, value, options }) => {
-          response.cookies.set(name, value, options as CookieOptions);
+          response.cookies.set(name, value, options);
         });
       },
     },

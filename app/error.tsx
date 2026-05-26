@@ -1,24 +1,28 @@
-"use client";
+'use client';
 
-import React from "react";
+import BrandMark from '../components/layout/BrandMark';
+import Container from '../components/layout/Container';
+import Button from '../components/ui/Button';
 
 export default function GlobalError({ error, reset }: { error: Error; reset: () => void }) {
   return (
-    <html>
-      <body>
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="max-w-md w-full p-6 bg-[var(--surface)] border border-[var(--border)] rounded-lg">
-            <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>
-              Something went wrong
-            </h2>
-            <pre className="mt-2 text-sm text-[var(--muted)]">{error.message}</pre>
-            <div className="mt-4">
-              <button className="px-4 py-2 rounded-lg bg-[var(--primary)] text-white" onClick={() => reset()}>
-                Retry
-              </button>
+    <html lang="en">
+      <body className="min-h-screen bg-[var(--background)] text-[var(--foreground)] antialiased">
+        <main className="flex min-h-screen items-center justify-center">
+          <Container className="flex w-full max-w-xl flex-col items-center gap-6 py-12 text-center">
+            <BrandMark compact showText={false} />
+            <div className="w-full rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)] p-6 text-left shadow-[var(--shadow)] sm:p-8">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-muted">Error</p>
+              <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">Something went wrong</h1>
+              <p className="mt-3 text-sm leading-6 text-muted">{error.message}</p>
+              <div className="mt-6 flex justify-end">
+                <Button type="button" onClick={reset}>
+                  Retry
+                </Button>
+              </div>
             </div>
-          </div>
-        </div>
+          </Container>
+        </main>
       </body>
     </html>
   );

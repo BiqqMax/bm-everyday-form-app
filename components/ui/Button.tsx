@@ -1,20 +1,69 @@
-"use client";
+import Link from 'next/link';
+import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from 'react';
 
-import React from "react";
+export type ButtonVariant = 'primary' | 'secondary';
+export type ButtonSize = 'sm' | 'md' | 'lg';
 
-type Props = React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "ghost";
-  size?: "sm" | "md" | "lg";
+type BaseProps = {
+  children: ReactNode;
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  className?: string;
 };
 
-export default function Button({ variant = "primary", size = "md", className = "", children, ...rest }: Props) {
-  const base = "inline-flex items-center justify-center rounded-lg font-medium focus:outline-none";
-  const sizes: Record<string, string> = { sm: "px-3 py-1 text-sm", md: "px-4 py-2 text-sm", lg: "px-5 py-3 text-base" };
+type ButtonAsButton = BaseProps &
+  Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className' | 'children'> & {
+    href?: never;
+  };
 
-  const style: React.CSSProperties = variant === "primary" ? { backgroundColor: "var(--primary)", color: "white" } : { backgroundColor: "transparent", color: "var(--text)", border: "1px solid var(--border)" };
+type ButtonAsLink = BaseProps &
+  Omit<AnchorHTMLAttributes<HTMLAnchorElement>, 'className' | 'children'> & {
+    href: string;
+  };
+
+type ButtonProps = ButtonAsButton | ButtonAsLink;
+
+const variantClasses: Record<ButtonVariant, string> = {
+  primary:
+    'bg-[var(--accent)] text-[var(--accent-foreground)] hover:bg-[var(--accent-hover)]',
+  secondary:
+    'border border-[var(--border)] bg-[var(--surface)] text-foreground hover:bg-[var(--surface-muted)]',
+};
+
+const sizeClasses: Record<ButtonSize, string> = {
+  sm: 'h-11 rounded-[10px] px-3 text-sm',
+  md: 'h-11 rounded-[10px] px-4 text-sm',
+  lg: 'h-11 rounded-[10px] px-5 text-base',
+};
+
+function joinClasses(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(' ');
+}
+
+export default function Button(props: ButtonProps) {
+  const { children, variant = 'primary', size = 'md', className = '', ...rest } = props;
+
+  const sharedClasses = joinClasses(
+    'inline-flex appearance-none items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:shadow-[0_0_0_3px_rgba(15,93,70,0.14)] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50',
+    variantClasses[variant],
+    sizeClasses[size],
+    className,
+  );
+
+  if ('href' in props && props.href) {
+    const linkProps = rest as Omit<ButtonAsLink, keyof BaseProps | 'href'>;
+
+    return (
+      <Link href={props.href} className={sharedClasses} {...linkProps}>
+        {children}
+      </Link>
+    );
+  }
+
+  const buttonProps = rest as Omit<ButtonAsButton, keyof BaseProps | 'href'>;
 
   return (
-    <button className={`${base} ${sizes[size]} ${className}`} style={style} {...rest}>
+    <button className={sharedClasses} {...buttonProps}>
       {children}
     </button>
   );

@@ -1,8 +1,20 @@
-"use client";
+'use client';
 
-import React from "react";
+import type { ElementType, PropsWithChildren } from 'react';
 
-export default function Skeleton({ className = "", as = "div" as any }: { className?: string; as?: any }) {
-  const Element = as;
-  return <Element className={`animate-pulse bg-[var(--border)] rounded-lg ${className}`} />;
+type SkeletonProps = PropsWithChildren<{
+  className?: string;
+  as?: ElementType;
+}>;
+
+function joinClasses(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(' ');
+}
+
+export default function Skeleton({ className = '', as: Element = 'div', children }: SkeletonProps) {
+  return (
+    <Element className={joinClasses('animate-pulse rounded-[var(--radius-md)] bg-[var(--surface-muted)]', className)}>
+      {children}
+    </Element>
+  );
 }

@@ -1,89 +1,46 @@
-README.md
-
+````md
 # Everyday Forms
 
-A modern open-source form platform built for teachers, schools, and educational communities.
+Modern forms for schools, teams, communities, and everyday workflows.
 
-Everyday Forms helps teachers create forms, collect student submissions, manage attendance, and organize classroom workflows without relying on paper forms.
-
-Built with a strong focus on:
-- simplicity
-- security
-- accessibility
-- mobile-first experience
-- clean UX
+Everyday Forms is a lightweight form management platform built for simple data collection without the complexity of enterprise tools. Create forms, share links, collect responses, and manage submissions from a clean dashboard experience.
 
 ---
 
-# ✨ Features
+## Features
 
-## Current Features
-- Teacher authentication
-- Google Sign-In
-- Dynamic form builder
+- Secure authentication
+- Email OTP verification
+- Google sign in
+- Form builder
 - Public form sharing
-- QR code sharing
 - Submission management
-- CSV export
-- Dark / Light theme
-- Mobile responsive dashboard
-- Analytics support
-- Privacy-focused architecture
+- Responsive dashboard
+- Dark and light themes
+- QR-ready sharing architecture
+- Row Level Security with Supabase
 
 ---
 
-# 🚀 Tech Stack
+## Tech Stack
 
-## Frontend
-- Next.js
+- Next.js App Router
 - TypeScript
 - Tailwind CSS
-
-## Backend
 - Supabase
 - PostgreSQL
 
-## Authentication
-- Supabase Auth
-- Google OAuth
-
-## Analytics
-- Mixpanel
-
-## Deployment
-- Vercel
-
 ---
 
-# 🎯 Project Goals
-
-Everyday Forms is designed to:
-- reduce paper usage in schools
-- simplify attendance collection
-- make classroom data collection easier
-- provide a free and open alternative for educators
-
-The goal is to keep the platform:
-- lightweight
-- fast
-- accessible
-- easy to contribute to
-
----
-
-# 📦 Installation
+## Getting Started
 
 Clone the repository:
 
 ```bash
 git clone https://github.com/BiqqMax/bm-everyday-form-app.git
-```
-
-Move into the project folder:
-
-```bash
 cd everyday-forms
-```
+
+````
 
 Install dependencies:
 
@@ -91,150 +48,81 @@ Install dependencies:
 npm install
 ```
 
-Run development server:
+Create `.env.local`:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+Start the development server:
 
 ```bash
 npm run dev
 ```
 
+Open:
+
+```text
+http://localhost:3000
+```
+
 ---
 
-# 🔑 Environment Variables
+## Environment Variables
 
-Create a `.env.local` file:
+Required variables:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
-NEXT_MIXPANEL_TOKEN=
 ```
 
-Never expose:
-- Supabase service role key
-- OAuth secrets
-- private credentials
+Never expose service role keys in frontend code.
 
 ---
 
-# 🔐 Security
+## Project Structure
 
-Security is a core priority of this project.
-
-Implemented security practices include:
-- Supabase Row Level Security (RLS)
-- secure authentication flows
-- protected server-side routes
-- input validation
-- secure environment handling
-
----
-
-# 📱 Design Principles
-
-Everyday Forms follows:
-- mobile-first responsive design
-- accessibility-first UI
-- minimal interface philosophy
-- consistent spacing system
-- cross-platform portability
-
-The design system is intentionally simple to support future Flutter/mobile implementations.
+```text
+app/
+components/
+lib/
+supabase/
+public/
+```
 
 ---
 
-# 🧠 Philosophy
+## Security
 
-This project avoids unnecessary complexity.
-
-The focus is:
-- reliable workflows
-- clean user experience
-- practical educational use cases
-
-Not:
-- flashy UI
-- overengineered systems
-- unnecessary features
+* Supabase Row Level Security (RLS)
+* Secure session handling
+* Protected routes
+* Ownership validation
+* Server-side auth validation
 
 ---
 
-# 🛣️ Planned Features
+## Roadmap
 
-Potential future improvements:
-- attendance mode
-- response limits
-- form expiration
-- multi-language support
-- organization/school workspaces
-- mobile app
-- offline support
+* QR code sharing
+* Analytics
+* Export tools
+* Team collaboration
+* Flutter mobile client
 
 ---
 
-# 🤝 Contributing
+## License
 
-Contributions are welcome.
-
-Please:
-- keep code clean and modular
-- follow the design system
-- maintain accessibility standards
-- prioritize security and simplicity
-
-Before major changes:
-- open an issue
-- discuss architecture decisions first
+MIT
 
 ---
 
-# 📄 Legal
+## Notes
 
-This project includes:
-- Privacy Policy
-- Terms of Service
+This project is actively evolving toward a production-grade cross-platform forms experience focused on simplicity, accessibility, and clean workflows.
 
-Contributors should avoid introducing features that compromise:
-- user privacy
-- security
-- accessibility
-
----
-
-# ❤️ Support the Project
-
-If you find this project useful, consider supporting development.
-
-Support options may include:
-- Flutterwave
-- GitHub Sponsors
-- Buy Me a Coffee
-
-Support helps maintain:
-- hosting
-- development
-- future improvements
-
----
-
-# 📬 Support
-
-For issues, suggestions, or questions:
-- open a GitHub issue
-- use the support page inside the app
-
----
-
-# 📜 License
-
-MIT License
-
-You are free to:
-- use
-- modify
-- distribute
-
-with attribution.
-
----
-
-Built for educators and students.
+```
+```

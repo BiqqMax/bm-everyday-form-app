@@ -1,16 +1,13 @@
-"use client";
+import { createBrowserClient } from '@supabase/ssr'
 
-import { createBrowserClient } from "@supabase/ssr";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { getSupabaseEnv } from "./env";
+import { supabaseAnonKey, supabaseUrl } from './env'
 
-let browserClient: SupabaseClient | null = null;
-
-export function getBrowserSupabaseClient() {
-  if (!browserClient) {
-    const { url, anonKey } = getSupabaseEnv();
-    browserClient = createBrowserClient(url, anonKey);
-  }
-
-  return browserClient;
+export function createClient() {
+  return createBrowserClient(supabaseUrl!, supabaseAnonKey!)
 }
+
+export const getBrowserSupabaseClient = createClient
+export const createBrowserSupabaseClient = createClient
+export const createBrowserClientInstance = createClient
+
+export default createClient

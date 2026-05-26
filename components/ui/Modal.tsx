@@ -1,6 +1,9 @@
-"use client";
+'use client';
 
-import { useEffect, useRef, type ReactNode } from "react";
+import type { ReactNode } from 'react';
+import { useEffect, useId, useRef } from 'react';
+
+import Button from './Button';
 
 type Props = {
   open: boolean;
@@ -9,74 +12,108 @@ type Props = {
   children?: ReactNode;
 };
 
+function joinClasses(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(' ');
+}
+
 export default function Modal({ open, onClose, title, children }: Props) {
   const ref = useRef<HTMLDivElement | null>(null);
+  const titleId = useId();
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      return;
+    }
 
-    const el = ref.current;
-    const prevActive = document.activeElement as HTMLElement | null;
+    const dialog = ref.current;
+    const previousActive = document.activeElement as HTMLElement | null;
 
-    const focusable = () =>
-      el
-        ? Array.from(
-            el.querySelectorAll<HTMLElement>(
-              "button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])"
-            )
-          )
-        : [];
+    const focusableSelector =
+      "a[href], button:not([disabled]), textarea, input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex='-1'])";
 
-    const keyHandler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-      if (e.key === "Tab") {
-        const items = focusable();
-        if (items.length === 0) {
-          e.preventDefault();
-          return;
-        }
-        const first = items[0];
-        const last = items[items.length - 1];
-        if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
+    const getFocusableElements = () => (dialog ? Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelector)) : []);
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+
+      if (event.key !== 'Tab') {
+        return;
+      }
+
+      const focusable = getFocusableElements();
+
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialog?.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (event.shiftKey) {
+        if (document.activeElement === first) {
+          event.preventDefault();
           last.focus();
         }
+        return;
+      }
+
+      if (document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
       }
     };
 
-    document.addEventListener("keydown", keyHandler);
-    setTimeout(() => {
-      const items = focusable();
-      if (items.length) items[0].focus();
-      else el?.focus();
+    document.addEventListener('keydown', handleKeyDown);
+
+    window.setTimeout(() => {
+      const focusable = getFocusableElements();
+      if (focusable.length > 0) {
+        focusable[0].focus();
+      } else {
+        dialog?.focus();
+      }
     }, 0);
 
     return () => {
-      document.removeEventListener("keydown", keyHandler);
-      prevActive?.focus();
+      document.removeEventListener('keydown', handleKeyDown);
+      previousActive?.focus();
     };
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!open) {
+    return null;
+  }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" aria-modal="true" role="dialog">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div ref={ref} className="relative w-full max-w-lg bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6" role="document">
-        {title ? (
-          <h2 className="text-lg font-medium" style={{ color: "var(--text)" }}>
-            {title}
-          </h2>
-        ) : null}
-        <div className="mt-4">{children}</div>
-        <div className="mt-4 flex justify-end">
-          <button onClick={onClose} className="px-4 py-2 rounded-lg border border-[var(--border)]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <button
+        type="button"
+        aria-label="Close dialog"
+        className="absolute inset-0 cursor-default bg-black/40 backdrop-blur-[2px]"
+        onClick={onClose}
+      />
+      <div
+        ref={ref}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={title ? titleId : undefined}
+        tabIndex={-1}
+        className={joinClasses(
+          'relative z-10 w-full max-w-lg rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)] p-6 text-foreground shadow-[var(--shadow)]',
+        )}
+      >
+        {title ? <h2 id={titleId} className="text-lg font-semibold tracking-tight text-foreground">{title}</h2> : null}
+        <div className={title ? 'mt-4' : ''}>{children}</div>
+        <div className="mt-6 flex justify-end">
+          <Button type="button" variant="secondary" size="md" onClick={onClose} className="w-20">
             Close
-          </button>
+          </Button>
         </div>
       </div>
     </div>

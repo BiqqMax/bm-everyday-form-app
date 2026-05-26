@@ -1,27 +1,36 @@
-import "server-only";
+import { cookies } from 'next/headers'
+import { createServerClient } from '@supabase/ssr'
 
-import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
-import { getSupabaseEnv } from "./env";
+import { supabaseAnonKey, supabaseUrl } from './env'
 
-export async function getServerSupabaseClient() {
-  const { url, anonKey } = getSupabaseEnv();
-  const cookieStore = await cookies();
+export async function createClient() {
+  const cookieStore = await cookies()
 
-  return createServerClient(url, anonKey, {
+  return createServerClient(supabaseUrl!, supabaseAnonKey!, {
     cookies: {
-      getAll() {
-        return cookieStore.getAll();
+      get(name) {
+        return cookieStore.get(name)?.value
       },
-      setAll(cookiesToSet) {
+      set(name, value, options) {
         try {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            cookieStore.set(name, value, options);
-          });
+          cookieStore.set({ name, value, ...options })
         } catch {
-          // In server components, cookies may be read-only. Route handlers and middleware can still sync session cookies.
+          // Route handlers can set cookies; server components may not.
+        }
+      },
+      remove(name, options) {
+        try {
+          cookieStore.set({ name, value: '', ...options, maxAge: 0 })
+        } catch {
+          // Ignore when cookies cannot be mutated.
         }
       },
     },
-  });
+  })
 }
+
+export const getServerSupabaseClient = createClient
+export const createServerSupabaseClient = createClient
+export const createServerClientInstance = createClient
+
+export default createClient

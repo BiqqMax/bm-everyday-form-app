@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
 
 import { AuthShell } from "../../components/auth/AuthShell";
@@ -8,8 +9,11 @@ import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
 import { createClient } from "../../lib/supabase/client";
 
-export default function ForgotPasswordPage() {
+export default function SignupPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -18,35 +22,48 @@ export default function ForgotPasswordPage() {
     event.preventDefault();
     setError(null);
     setMessage(null);
-    setIsSubmitting(true);
 
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    setIsSubmitting(true);
     const supabase = createClient();
     const redirectTo =
-      typeof window !== "undefined" ? `${window.location.origin}/auth/callback?next=/reset-password` : undefined;
+      typeof window !== "undefined" ? `${window.location.origin}/auth/callback?next=/dashboard` : undefined;
 
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo,
+    const { data, error: signUpError } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: redirectTo ? { emailRedirectTo: redirectTo } : undefined,
     });
 
-    if (resetError) {
-      setError(resetError.message);
+    if (signUpError) {
+      setError(signUpError.message);
       setIsSubmitting(false);
       return;
     }
 
-    setMessage("If an account exists for that email, we sent a one-time recovery link.");
+    if (data.session) {
+      router.replace("/dashboard");
+      router.refresh();
+      return;
+    }
+
+    setMessage("Check your inbox for a one-time verification link to finish creating your account.");
     setIsSubmitting(false);
   }
 
   return (
     <AuthShell
-      title="Reset your password"
-      description="Enter the email tied to your account and we’ll send a recovery link."
+      title="Create your account"
+      description="A minimal sign-up flow with a clear next step and a calm confirmation message."
       footer={
         <p className="text-center text-sm text-muted-foreground">
-          Remembered it?{" "}
+          Already have an account?{" "}
           <Link href="/login" className="font-medium text-foreground underline-offset-4 hover:underline">
-            Return to sign in
+            Sign in
           </Link>
         </p>
       }
@@ -64,6 +81,30 @@ export default function ForgotPasswordPage() {
           required
         />
 
+        <Input
+          id="password"
+          name="password"
+          type="password"
+          label="Password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          autoComplete="new-password"
+          placeholder="Create a password"
+          required
+        />
+
+        <Input
+          id="confirmPassword"
+          name="confirmPassword"
+          type="password"
+          label="Confirm password"
+          value={confirmPassword}
+          onChange={(event) => setConfirmPassword(event.target.value)}
+          autoComplete="new-password"
+          placeholder="Re-enter your password"
+          required
+        />
+
         {error ? (
           <p className="text-sm leading-6 text-destructive" role="alert">
             {error}
@@ -77,7 +118,7 @@ export default function ForgotPasswordPage() {
         ) : null}
 
         <Button type="submit" variant="primary" className="w-full" disabled={isSubmitting}>
-          {isSubmitting ? "Sending link…" : "Send recovery link"}
+          {isSubmitting ? "Creating account…" : "Create account"}
         </Button>
       </form>
     </AuthShell>

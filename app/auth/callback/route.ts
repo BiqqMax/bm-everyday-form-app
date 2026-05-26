@@ -1,38 +1,56 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { getSupabaseEnv } from "@/lib/supabase/env";
+import { NextRequest, NextResponse } from 'next/server'
+
+import { createClient } from '../../../lib/supabase/server'
+import { isSafeRedirectPath, sanitizeAuthInput } from '../../../lib/utils/validators'
+
+function redirectTo(request: NextRequest, path: string) {
+  return NextResponse.redirect(new URL(path, request.url))
+}
+
+function authErrorRedirect(request: NextRequest, path: string, message: string) {
+  return redirectTo(request, `${path}?error=${encodeURIComponent(sanitizeAuthInput(message))}`)
+}
 
 export async function GET(request: NextRequest) {
-  const requestUrl = new URL(request.url);
-  const code = requestUrl.searchParams.get("code");
-  const nextPath = requestUrl.searchParams.get("next");
-  const redirectTarget = nextPath && nextPath.startsWith("/") ? nextPath : "/dashboard";
+  const requestUrl = new URL(request.url)
+  const code = requestUrl.searchParams.get('code')
+  const tokenHash = requestUrl.searchParams.get('token_hash')
+  const type = requestUrl.searchParams.get('type')
+  const nextPath = isSafeRedirectPath(requestUrl.searchParams.get('next'), '/dashboard')
 
-  if (!code) {
-    return NextResponse.redirect(new URL("/login?error=missing_code", request.url));
+  const supabase = await createClient()
+
+  if (code) {
+    const { error } = await supabase.auth.exchangeCodeForSession(code)
+
+    if (error) {
+      return authErrorRedirect(request, '/login', 'Unable to complete authentication.')
+    }
+
+    return redirectTo(request, nextPath)
   }
 
-  const { url, anonKey } = getSupabaseEnv();
-  const response = NextResponse.redirect(new URL(redirectTarget, request.url));
+  if (tokenHash && type) {
+    const typed = type as Parameters<typeof supabase.auth.verifyOtp>[0]['type']
+    const { error } = await supabase.auth.verifyOtp({
+      token_hash: tokenHash,
+      type: typed,
+    })
 
-  const supabase = createServerClient(url, anonKey, {
-    cookies: {
-      getAll() {
-        return request.cookies.getAll();
-      },
-      setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value, options }) => {
-          response.cookies.set(name, value, options);
-        });
-      },
-    },
-  });
+    if (error) {
+      if (typed === 'recovery') {
+        return authErrorRedirect(request, '/forgot-password', 'Recovery link could not be verified.')
+      }
 
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
+      return authErrorRedirect(request, '/login', 'Email verification could not be completed.')
+    }
 
-  if (error) {
-    return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(error.message)}`, request.url));
+    if (typed === 'recovery') {
+      return redirectTo(request, '/reset-password')
+    }
+
+    return redirectTo(request, nextPath)
   }
 
-  return response;
+  return redirectTo(request, '/login')
 }

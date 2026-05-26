@@ -1,0 +1,30 @@
+<svg width="320" height="64" viewBox="0 0 320 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .logo-text {
+      fill: #0F172A;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .logo-text {
+        fill: #F8FAFC;
+      }
+    }
+  </style>
+
+  <rect x="8" y="8" width="48" height="48" rx="12" fill="#0F5D46"/>
+
+  <rect x="20" y="20" width="24" height="4" rx="2" fill="white"/>
+  <rect x="20" y="30" width="18" height="4" rx="2" fill="white"/>
+  <rect x="20" y="40" width="14" height="4" rx="2" fill="white"/>
+
+  <text
+    x="72"
+    y="41"
+    class="logo-text"
+    font-family="Inter, Arial, sans-serif"
+    font-size="28"
+    font-weight="600"
+    letter-spacing="-0.02em">
+    Everyday Forms
+  </text>
+</svg>
