@@ -1,5 +1,5 @@
-import AuthLoadingScreen from "../components/auth/AuthLoadingScreen";
+import AuthRouteLoading from "../components/auth/AuthRouteLoading";
 
 export default function Loading() {
-  return <AuthLoadingScreen title="Loading..." details="Please wait while we finish restoring your session." />;
+  return <AuthRouteLoading />;
 }

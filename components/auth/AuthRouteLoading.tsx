@@ -1,10 +1,15 @@
+import type { ReactNode } from "react";
+
 import AuthLoadingScreen from "./AuthLoadingScreen";
 
-export default function AuthRouteLoading() {
-  return (
-    <AuthLoadingScreen
-      title="Authenticating..."
-      details="Please wait while we complete your sign in and redirect you."
-    />
-  );
+type AuthRouteLoadingProps = {
+  title?: ReactNode;
+  details?: ReactNode;
+};
+
+export default function AuthRouteLoading({
+  title = "Signing you in...",
+  details,
+}: AuthRouteLoadingProps) {
+  return <AuthLoadingScreen title={title} details={details} />;
 }
