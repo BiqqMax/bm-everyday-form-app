@@ -14,7 +14,7 @@ import { DASHBOARD_ROUTE } from "../../lib/auth/flow";
 
 export default function LoginForm() {
   const searchParams = useSearchParams();
-  const [state, formAction] = useActionState(loginAction, AUTH_ACTION_INITIAL_STATE);
+  const [state, formAction, isPending] = useActionState(loginAction, AUTH_ACTION_INITIAL_STATE);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const resetSuccess = searchParams.get("reset") === "success";
@@ -87,8 +87,15 @@ export default function LoginForm() {
                 </Link>
               </div>
 
-              <Button type="submit" variant="primary" className="w-full">
-                Sign in
+              <Button type="submit" variant="primary" className="w-full" disabled={isPending}>
+                {isPending ? (
+                  <span className="inline-flex items-center gap-2">
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                    Signing in...
+                  </span>
+                ) : (
+                  "Sign in"
+                )}
               </Button>
             </>
           ) : null}

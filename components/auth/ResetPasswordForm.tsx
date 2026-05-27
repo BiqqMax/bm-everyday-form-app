@@ -81,7 +81,14 @@ export default function ResetPasswordForm() {
           {state.status === "success" ? <Banner tone="success">{sanitizeAuthInput(state.message)}</Banner> : null}
 
           <Button type="submit" className="w-full" disabled={isPending}>
-            Update password
+            {isPending ? (
+              <span className="inline-flex items-center gap-2">
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                Updating password...
+              </span>
+            ) : (
+              "Update password"
+            )}
           </Button>
         </form>
 

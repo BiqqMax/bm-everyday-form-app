@@ -12,7 +12,7 @@ import { AUTH_ACTION_INITIAL_STATE } from "../../lib/auth/action-state";
 import { ONBOARDING_ROUTE } from "../../lib/auth/flow";
 
 export default function SignupForm() {
-  const [state, formAction] = useActionState(signupAction, AUTH_ACTION_INITIAL_STATE);
+  const [state, formAction, isPending] = useActionState(signupAction, AUTH_ACTION_INITIAL_STATE);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -90,8 +90,15 @@ export default function SignupForm() {
                 </p>
               ) : null}
 
-              <Button type="submit" variant="primary" className="w-full">
-                Create account
+              <Button type="submit" variant="primary" className="w-full" disabled={isPending}>
+                {isPending ? (
+                  <span className="inline-flex items-center gap-2">
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                    Creating account...
+                  </span>
+                ) : (
+                  "Create account"
+                )}
               </Button>
             </>
           ) : (

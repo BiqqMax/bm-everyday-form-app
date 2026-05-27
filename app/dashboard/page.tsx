@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import Dashboard from "../../components/dashboard/Dashboard";
-import HistoryStabilizer from "../../components/layout/HistoryStabilizer";
 import { DASHBOARD_ROUTE } from "../../lib/auth/flow";
 import { getPostAuthDestination } from "../../lib/auth/post-auth";
 import { getDashboardData } from "../../lib/dashboard/dashboard";
@@ -29,10 +28,5 @@ export default async function DashboardPage() {
 
   const data = await getDashboardData(supabase, user.id);
 
-  return (
-    <>
-      <HistoryStabilizer />
-      <Dashboard data={data} userEmail={user.email} />
-    </>
-  );
+  return <Dashboard data={data} userEmail={user.email} />;
 }

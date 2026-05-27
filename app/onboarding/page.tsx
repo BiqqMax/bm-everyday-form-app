@@ -2,11 +2,14 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import BrandMark from "../../components/layout/BrandMark";
-import HistoryStabilizer from "../../components/layout/HistoryStabilizer";
 import OnboardingForm from "../../components/onboarding/OnboardingForm";
 import { DASHBOARD_ROUTE, LOGIN_ROUTE, ONBOARDING_ROUTE } from "../../lib/auth/flow";
 import { getPostAuthDestination } from "../../lib/auth/post-auth";
 import { getServerSupabaseClient } from "../../lib/supabase/server";
+
+export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
+export const revalidate = 0;
 
 export const metadata: Metadata = {
   title: "Onboarding | Everyday Forms",
@@ -23,7 +26,7 @@ export default async function OnboardingPage() {
     redirect(LOGIN_ROUTE);
   }
 
-  const destination = await getPostAuthDestination(supabase, ONBOARDING_ROUTE);
+  const destination = await getPostAuthDestination(supabase, DASHBOARD_ROUTE);
 
   if (destination !== ONBOARDING_ROUTE) {
     redirect(destination);
@@ -36,9 +39,8 @@ export default async function OnboardingPage() {
     .maybeSingle();
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <HistoryStabilizer />
-      <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-4 py-6 sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-background text-foreground flex flex-col">
+      <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col px-4 py-6 sm:px-6 lg:px-8">
         <header className="flex items-center justify-between gap-4">
           <BrandMark href="" />
         </header>

@@ -34,9 +34,7 @@ export default function AppShell({ children }: AppShellProps) {
       <div className="flex-1">{children}</div>
 
       {/* Always render footer element to reserve layout space; visually hide when appropriate */}
-      <div className={hideFooter ? "invisible" : "visible"}>
-        <SiteFooter />
-      </div>
+      {!hideFooter ? <SiteFooter /> : null}
     </div>
   );
 }

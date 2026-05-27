@@ -10,7 +10,7 @@ import { forgotPasswordAction } from "../../lib/auth/actions";
 import { AUTH_ACTION_INITIAL_STATE } from "../../lib/auth/action-state";
 
 export default function ForgotPasswordForm() {
-  const [state, formAction] = useActionState(forgotPasswordAction, AUTH_ACTION_INITIAL_STATE);
+  const [state, formAction, isPending] = useActionState(forgotPasswordAction, AUTH_ACTION_INITIAL_STATE);
   const [email, setEmail] = useState("");
 
   return (
@@ -51,8 +51,15 @@ export default function ForgotPasswordForm() {
           </p>
         ) : null}
 
-        <Button type="submit" variant="primary" className="w-full">
-          Send recovery link
+        <Button type="submit" variant="primary" className="w-full" disabled={isPending}>
+          {isPending ? (
+            <span className="inline-flex items-center gap-2">
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+              Sending link...
+            </span>
+          ) : (
+            "Send recovery link"
+          )}
         </Button>
       </form>
     </AuthShell>

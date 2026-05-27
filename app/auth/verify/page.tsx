@@ -4,6 +4,11 @@ import AuthVerifyClient from "../../../components/auth/AuthVerifyClient";
 import { getPostAuthDestination } from "../../../lib/auth/post-auth";
 import { createClient } from "../../../lib/supabase/server";
 
+// Prevent browser cache restoration of transitional auth page
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
+
 type SearchParams = Record<string, string | string[] | undefined>;
 
 export default async function AuthVerifyPage({

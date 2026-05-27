@@ -79,8 +79,6 @@ export default function AuthVerifyClient({ searchParams }: AuthVerifyClientProps
   const canResend = cooldownRemaining === 0 && !isSubmitting;
 
   useEffect(() => {
-    history.replaceState(null, "", location.pathname);
-
     if (!cooldownRemaining) {
       return;
     }
@@ -221,8 +219,15 @@ export default function AuthVerifyClient({ searchParams }: AuthVerifyClientProps
         ) : null}
 
         <div className="flex flex-col gap-3 sm:flex-row">
-          <Button type="submit" className="w-full sm:flex-1" disabled={!isReady || isSubmitting}>
-            {isSubmitting ? "Verifying…" : "Verify code"}
+          <Button type="submit" className="w-full sm:flex-1" disabled={!isReady || isSubmitting} aria-busy={isSubmitting}>
+            {isSubmitting ? (
+              <span className="inline-flex items-center gap-2">
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                Verifying...
+              </span>
+            ) : (
+              "Verify code"
+            )}
           </Button>
           <Button type="button" variant="secondary" className="w-full sm:w-auto" disabled={!canResend} onClick={handleResend}>
             {cooldownRemaining ? `Resend in ${cooldownRemaining}s` : "Resend code"}

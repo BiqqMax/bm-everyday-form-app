@@ -13,8 +13,8 @@ interface AuthShellProps {
 
 export function AuthShell({ title, description, children, footer }: AuthShellProps) {
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-4 sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-background text-foreground flex flex-col">
+      <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col px-4 py-4 sm:px-6 lg:px-8">
         <header className="flex items-center justify-between gap-4">
           <BrandMark href="/" />
           <ThemeToggle />

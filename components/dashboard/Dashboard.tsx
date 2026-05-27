@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import BrandMark from "../layout/BrandMark";
 import Button from "../ui/Button";
 import Card from "../ui/Card";
@@ -9,9 +9,6 @@ import LogoutButton from "../auth/LogoutButton";
 import type { DashboardActionState } from "../../lib/dashboard/actions";
 import { createFormAction, deleteFormAction, updateFormAction } from "../../lib/dashboard/actions";
 import type { DashboardData, DashboardForm, DashboardSubmission } from "../../lib/dashboard/dashboard";
-import AuthRouteLoading from "../auth/AuthRouteLoading";
-import { useRouter } from "next/navigation";
-import { createClient } from "../../lib/supabase/client";
 
 type DashboardSource = DashboardData & Record<string, unknown>;
 
@@ -612,36 +609,9 @@ export default function Dashboard({
   data: DashboardData;
   userEmail?: string | null;
 }) {
-  const router = useRouter();
-  const [isReady, setIsReady] = useState(false);
-
-  useEffect(() => {
-    let mounted = true;
-    const supabase = createClient();
-
-    supabase.auth
-      .getUser()
-      .then(({ data: { user } }) => {
-        if (!mounted) return;
-        if (!user) {
-          router.replace("/login");
-          return;
-        }
-        setIsReady(true);
-      })
-      .catch((err) => {
-        console.error("Dashboard client session check failed", err);
-        if (mounted) router.replace("/login");
-      });
-
-    return () => {
-      mounted = false;
-    };
-  }, [router]);
-
-  if (!isReady) {
-    return <AuthRouteLoading title="Loading dashboard..." />;
-  }
+  const [state, action, isPending] = useActionState(createFormAction, initialActionState);
+  const [deleteState, deleteAction, isDeletePending] = useActionState(deleteFormAction, initialActionState);
+  const [updateState, updateAction, isUpdatePending] = useActionState(updateFormAction, initialActionState);
   const source = data as DashboardSource;
   const displayName = firstText(
     source.displayName,
@@ -656,7 +626,7 @@ export default function Dashboard({
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
-      <div className="mx-auto grid min-h-screen w-full max-w-[1640px] gap-6 px-4 py-4 lg:grid-cols-[280px_minmax(0,1fr)] lg:px-6 xl:px-8">
+      <div className="mx-auto grid w-full max-w-[1640px] gap-6 px-4 py-4 lg:grid-cols-[280px_minmax(0,1fr)] lg:px-6 xl:px-8">
         <aside className="lg:sticky lg:top-6 lg:h-[calc(100vh-3rem)] lg:self-start">
           <Card className="flex h-full flex-col gap-6 border-[var(--border)] bg-[var(--surface)] p-5 shadow-none">
             <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface-subtle)] p-5">

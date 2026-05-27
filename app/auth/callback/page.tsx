@@ -5,6 +5,11 @@ import { getPostAuthDestination } from "../../../lib/auth/post-auth";
 import { createClient } from "../../../lib/supabase/server";
 import { isSafeRedirectPath, sanitizeAuthInput } from "../../../lib/utils/validators";
 
+// Prevent browser cache restoration of transitional auth page
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
+
 const INTERNAL_PARAMS = new Set(["code", "token_hash", "type", "next"]);
 
 type SearchParams = Record<string, string | string[] | undefined>;
