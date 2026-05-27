@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import BrandMark from "../layout/BrandMark";
 import Button from "../ui/Button";
 import Card from "../ui/Card";
@@ -9,6 +9,9 @@ import LogoutButton from "../auth/LogoutButton";
 import type { DashboardActionState } from "../../lib/dashboard/actions";
 import { createFormAction, deleteFormAction, updateFormAction } from "../../lib/dashboard/actions";
 import type { DashboardData, DashboardForm, DashboardSubmission } from "../../lib/dashboard/dashboard";
+import AuthRouteLoading from "../auth/AuthRouteLoading";
+import { useRouter } from "next/navigation";
+import { createClient } from "../../lib/supabase/client";
 
 type DashboardSource = DashboardData & Record<string, unknown>;
 
@@ -609,6 +612,36 @@ export default function Dashboard({
   data: DashboardData;
   userEmail?: string | null;
 }) {
+  const router = useRouter();
+  const [isReady, setIsReady] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    const supabase = createClient();
+
+    supabase.auth
+      .getUser()
+      .then(({ data: { user } }) => {
+        if (!mounted) return;
+        if (!user) {
+          router.replace("/login");
+          return;
+        }
+        setIsReady(true);
+      })
+      .catch((err) => {
+        console.error("Dashboard client session check failed", err);
+        if (mounted) router.replace("/login");
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [router]);
+
+  if (!isReady) {
+    return <AuthRouteLoading title="Loading dashboard..." />;
+  }
   const source = data as DashboardSource;
   const displayName = firstText(
     source.displayName,

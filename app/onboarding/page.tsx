@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import BrandMark from "../../components/layout/BrandMark";
+import HistoryStabilizer from "../../components/layout/HistoryStabilizer";
 import OnboardingForm from "../../components/onboarding/OnboardingForm";
-import { DASHBOARD_ROUTE, LOGIN_ROUTE } from "../../lib/auth/flow";
+import { DASHBOARD_ROUTE, LOGIN_ROUTE, ONBOARDING_ROUTE } from "../../lib/auth/flow";
+import { getPostAuthDestination } from "../../lib/auth/post-auth";
 import { getServerSupabaseClient } from "../../lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -21,18 +23,21 @@ export default async function OnboardingPage() {
     redirect(LOGIN_ROUTE);
   }
 
+  const destination = await getPostAuthDestination(supabase, ONBOARDING_ROUTE);
+
+  if (destination !== ONBOARDING_ROUTE) {
+    redirect(destination);
+  }
+
   const { data: profile } = await supabase
     .from("profiles")
     .select("id, email, account_type, display_name, organization_name, onboarding_completed")
     .eq("id", user.id)
     .maybeSingle();
 
-  if (profile?.onboarding_completed) {
-    redirect(DASHBOARD_ROUTE);
-  }
-
   return (
     <main className="min-h-screen bg-background text-foreground">
+      <HistoryStabilizer />
       <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-4 py-6 sm:px-6 lg:px-8">
         <header className="flex items-center justify-between gap-4">
           <BrandMark href="" />

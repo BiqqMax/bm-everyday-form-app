@@ -4,8 +4,10 @@ import Button from "../ui/Button";
 
 export default function LogoutButton() {
   return (
-    <Button type="button" href="/logout" variant="secondary">
-      Log out
-    </Button>
+    <form action="/logout" method="post">
+      <Button type="submit" variant="secondary">
+        Log out
+      </Button>
+    </form>
   );
 }

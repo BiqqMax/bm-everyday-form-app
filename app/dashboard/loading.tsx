@@ -1,5 +1,5 @@
-import AuthRouteLoading from "../../components/auth/AuthRouteLoading";
+import UnifiedLoading from "../../components/ui/UnifiedLoading";
 
 export default function DashboardLoading() {
-  return <AuthRouteLoading title="Setting up your dashboard..." />;
+  return <UnifiedLoading title="Setting up your dashboard..." />;
 }

@@ -1,60 +1,20 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import Link from "next/link";
-import { useActionState, useState } from "react";
+import ForgotPasswordForm from "../../components/auth/ForgotPasswordForm";
+import { createClient } from "../../lib/supabase/server";
+import { getPostAuthDestination } from "../../lib/auth/post-auth";
+import { DASHBOARD_ROUTE } from "../../lib/auth/flow";
 
-import { AuthShell } from "../../components/auth/AuthShell";
-import Button from "../../components/ui/Button";
-import Input from "../../components/ui/Input";
-import { forgotPasswordAction } from "../../lib/auth/actions";
-import { AUTH_ACTION_INITIAL_STATE } from "../../lib/auth/action-state";
+export default async function ForgotPasswordPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-export default function ForgotPasswordPage() {
-  const [state, formAction] = useActionState(forgotPasswordAction, AUTH_ACTION_INITIAL_STATE);
-  const [email, setEmail] = useState("");
+  if (user) {
+    const destination = await getPostAuthDestination(supabase, DASHBOARD_ROUTE);
+    redirect(destination);
+  }
 
-  return (
-    <AuthShell
-      title="Reset your password"
-      description="Enter the email tied to your account and we’ll send a recovery link."
-      footer={
-        <p className="text-center text-sm text-muted-foreground">
-          Remembered it?{" "}
-          <Link href="/login" className="font-medium text-foreground underline-offset-4 hover:underline">
-            Return to sign in
-          </Link>
-        </p>
-      }
-    >
-      <form className="space-y-4" action={formAction}>
-        <Input
-          id="email"
-          name="email"
-          type="email"
-          label="Email address"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          autoComplete="email"
-          placeholder="name@example.com"
-          required
-        />
-
-        {state.status === "error" ? (
-          <p className="text-sm leading-6 text-destructive" role="alert">
-            {state.message}
-          </p>
-        ) : null}
-
-        {state.status === "success" ? (
-          <p className="text-sm leading-6 text-foreground" role="status">
-            {state.message}
-          </p>
-        ) : null}
-
-        <Button type="submit" variant="primary" className="w-full">
-          Send recovery link
-        </Button>
-      </form>
-    </AuthShell>
-  );
+  return <ForgotPasswordForm />;
 }

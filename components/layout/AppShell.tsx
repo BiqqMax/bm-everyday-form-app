@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 
 import SiteFooter from "./SiteFooter";
+import HydrationGuard from "./HydrationGuard";
 
 const HIDDEN_FOOTER_PATHS = [
   "/dashboard",
@@ -29,8 +30,13 @@ export default function AppShell({ children }: AppShellProps) {
 
   return (
     <div className="flex min-h-screen flex-col">
+      <HydrationGuard />
       <div className="flex-1">{children}</div>
-      {hideFooter ? null : <SiteFooter />}
+
+      {/* Always render footer element to reserve layout space; visually hide when appropriate */}
+      <div className={hideFooter ? "invisible" : "visible"}>
+        <SiteFooter />
+      </div>
     </div>
   );
 }

@@ -1,12 +1,15 @@
 "use client";
 
-import { useActionState, useMemo, useState, type FormEvent } from "react";
+import { useActionState, useMemo, useState, useEffect, type FormEvent } from "react";
 
 import { completeOnboardingAction } from "../../lib/auth/actions";
 import { AUTH_ACTION_INITIAL_STATE } from "../../lib/auth/action-state";
 import Button from "../ui/Button";
 import Card, { CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../ui/Card";
 import Input from "../ui/Input";
+import AuthRouteLoading from "../auth/AuthRouteLoading";
+import { useRouter } from "next/navigation";
+import { createClient } from "../../lib/supabase/client";
 
 type AccountChoice = "personal" | "business" | "education";
 type DatabaseAccountType = "individual" | "organization";
@@ -52,12 +55,13 @@ export default function OnboardingForm({
   initialDisplayName = "",
   initialOrganizationName = "",
 }: OnboardingFormProps) {
+  const router = useRouter();
+  const [isReady, setIsReady] = useState(false);
   const [state, formAction, isPending] = useActionState(completeOnboardingAction, AUTH_ACTION_INITIAL_STATE);
   const [accountType, setAccountType] = useState<AccountChoice>(mapAccountTypeToChoice(initialAccountType));
   const [step, setStep] = useState<OnboardingStep>(1);
   const [displayName, setDisplayName] = useState(initialDisplayName ?? "");
   const [organizationName, setOrganizationName] = useState(initialOrganizationName ?? "");
-
 
   const helperText = useMemo(() => {
     if (step === 1) {
@@ -74,6 +78,34 @@ export default function OnboardingForm({
 
     return "Tell us the company, team, or organization name.";
   }, [accountType, step]);
+
+  useEffect(() => {
+    let mounted = true;
+    const supabase = createClient();
+
+    supabase.auth
+      .getUser()
+      .then(({ data: { user } }) => {
+        if (!mounted) return;
+        if (!user) {
+          router.replace("/login");
+          return;
+        }
+        setIsReady(true);
+      })
+      .catch((err) => {
+        console.error("Onboarding client session check failed", err);
+        if (mounted) router.replace("/login");
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [router]);
+
+  if (!isReady) {
+    return <AuthRouteLoading title="Loading…" />;
+  }
 
   function goToStep2() {
     setStep(2);

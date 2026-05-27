@@ -14,15 +14,15 @@ export async function createClient() {
       set(name, value, options) {
         try {
           cookieStore.set({ name, value, ...options });
-        } catch {
-          // Server components cannot always mutate cookies.
+        } catch (error) {
+          console.error("Supabase cookie set failed", { name, error });
         }
       },
       remove(name, options) {
         try {
           cookieStore.set({ name, value: "", ...options, maxAge: 0 });
-        } catch {
-          // Ignore when cookie mutation is unavailable.
+        } catch (error) {
+          console.error("Supabase cookie removal failed", { name, error });
         }
       },
     },

@@ -69,7 +69,7 @@ export function GoogleOAuthButton({
       return;
     }
 
-    window.location.assign(data.url);
+    window.location.replace(data.url);
   }
 
   return (

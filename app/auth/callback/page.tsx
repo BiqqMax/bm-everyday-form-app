@@ -23,17 +23,11 @@ function getFirstValue(value: string | string[] | undefined) {
 
 function getPreservedSearchParams(searchParams: SearchParams) {
   const preserved = new URLSearchParams();
+  const nextPath = getFirstValue(searchParams.next);
 
-  Object.entries(searchParams).forEach(([key, value]) => {
-    if (INTERNAL_PARAMS.has(key)) {
-      return;
-    }
-
-    const firstValue = getFirstValue(value);
-    if (firstValue) {
-      preserved.set(key, firstValue);
-    }
-  });
+  if (nextPath) {
+    preserved.set("next", nextPath);
+  }
 
   return preserved;
 }
@@ -96,6 +90,14 @@ export default async function AuthCallbackPage({
 
     const destination = await getPostAuthDestination(supabase, nextPath);
     redirectTo(appendSearchParams(destination, preservedSearchParams));
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirectTo("/login");
   }
 
   const destination = await getPostAuthDestination(supabase, nextPath);

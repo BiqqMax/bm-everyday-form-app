@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { updateSession } from "./lib/supabase/middleware";
 
 const PROTECTED_PATHS = ["/dashboard", "/onboarding"];
-const AUTH_PATHS = ["/login", "/signup"];
+const AUTH_PATHS = ["/login", "/signup", "/auth/verify"];
 const CALLBACK_PATH = "/auth/callback";
 
 function copyCookies(source: NextResponse, target: NextResponse) {

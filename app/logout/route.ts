@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { AUTH_CALLBACK_ROUTE, LOGIN_ROUTE } from "../../lib/auth/flow";
+import { LOGIN_ROUTE } from "../../lib/auth/flow";
 import { signOutServerSide } from "../../lib/auth/logout";
 
 function redirectTo(request: NextRequest, path: string) {
@@ -10,7 +10,7 @@ function redirectTo(request: NextRequest, path: string) {
   return response;
 }
 
-export async function GET(request: NextRequest) {
+export async function POST(request: NextRequest) {
   await signOutServerSide();
-  return redirectTo(request, `${AUTH_CALLBACK_ROUTE}?next=${encodeURIComponent(LOGIN_ROUTE)}`);
+  return redirectTo(request, LOGIN_ROUTE);
 }

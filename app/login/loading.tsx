@@ -1,5 +1,5 @@
-import AuthRouteLoading from "../../components/auth/AuthRouteLoading";
+import UnifiedLoading from "../../components/ui/UnifiedLoading";
 
 export default function Loading() {
-  return <AuthRouteLoading title="Signing you in..." />;
+  return <UnifiedLoading title="Signing you in..." />;
 }

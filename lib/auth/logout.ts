@@ -7,7 +7,7 @@ import { getServerSupabaseClient } from "../supabase/server";
 const SUPABASE_COOKIE_PREFIXES = ["sb-", "supabase"];
 
 function isSupabaseCookie(name: string) {
-  return SUPABASE_COOKIE_PREFIXES.some((prefix) => name.startsWith(prefix) || name.includes(prefix));
+  return SUPABASE_COOKIE_PREFIXES.some((prefix) => name.startsWith(prefix));
 }
 
 export async function signOutServerSide() {
@@ -20,7 +20,11 @@ export async function signOutServerSide() {
 
     cookieStore.getAll().forEach(({ name }) => {
       if (isSupabaseCookie(name)) {
-        cookieStore.delete(name);
+        try {
+          cookieStore.set({ name, value: "", path: "/", maxAge: 0 });
+        } catch (error) {
+          console.error("Supabase logout cookie cleanup failed", { name, error });
+        }
       }
     });
   }
