@@ -1,24 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { type FormEvent, useMemo, useState } from "react";
+import { useActionState, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { AuthShell } from "../../components/auth/AuthShell";
 import { GoogleOAuthButton } from "../../components/auth/GoogleOAuthButton";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
-import { DASHBOARD_ROUTE, getAuthVerifyUrl } from "../../lib/auth/flow";
-import { createClient } from "../../lib/supabase/client";
+import { loginAction } from "../../lib/auth/actions";
+import { AUTH_ACTION_INITIAL_STATE } from "../../lib/auth/action-state";
+import { DASHBOARD_ROUTE } from "../../lib/auth/flow";
 
 export default function LoginPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const resetSuccess = searchParams.get("reset") === "success";
+  const [state, formAction] = useActionState(loginAction, AUTH_ACTION_INITIAL_STATE);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const resetSuccess = searchParams.get("reset") === "success";
   const hasEmailAtSymbol = email.includes("@");
 
   const helperText = useMemo(() => {
@@ -28,47 +27,6 @@ export default function LoginPage() {
 
     return "Good to see you again. Sign in to keep going with your forms.";
   }, [resetSuccess]);
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-    setIsSubmitting(true);
-
-    const emailValue = email.trim();
-    const supabase = createClient();
-
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: emailValue,
-      password,
-    });
-
-    if (signInError) {
-      setError(signInError.message);
-      setIsSubmitting(false);
-      return;
-    }
-
-    await supabase.auth.signOut();
-
-    const redirectTo =
-      typeof window !== "undefined"
-        ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(DASHBOARD_ROUTE)}`
-        : undefined;
-
-    const { error: otpError } = await supabase.auth.signInWithOtp({
-      email: emailValue,
-      options: redirectTo ? { emailRedirectTo: redirectTo } : undefined,
-    });
-
-    if (otpError) {
-      setError(otpError.message);
-      setIsSubmitting(false);
-      return;
-    }
-
-    router.replace(getAuthVerifyUrl("login", emailValue, DASHBOARD_ROUTE));
-    router.refresh();
-  }
 
   return (
     <AuthShell
@@ -90,7 +48,7 @@ export default function LoginPage() {
           <span className="px-3 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">or</span>
           <div className="h-px flex-1 bg-border" />
         </div>
-        <form className="space-y-4" onSubmit={handleSubmit}>
+        <form className="space-y-4" action={formAction}>
           <Input
             id="email"
             name="email"
@@ -117,9 +75,9 @@ export default function LoginPage() {
                 required
               />
 
-              {error ? (
+              {state.status === "error" ? (
                 <p className="text-sm leading-6 text-destructive" role="alert">
-                  {error}
+                  {state.message}
                 </p>
               ) : null}
 
@@ -129,8 +87,8 @@ export default function LoginPage() {
                 </Link>
               </div>
 
-              <Button type="submit" variant="primary" className="w-full" disabled={isSubmitting}>
-                {isSubmitting ? "Signing in…" : "Sign in"}
+              <Button type="submit" variant="primary" className="w-full">
+                Sign in
               </Button>
             </>
           ) : null}

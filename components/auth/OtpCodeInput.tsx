@@ -139,7 +139,7 @@ export function OtpCodeInput({
       <legend className="block text-sm font-medium text-foreground">{label}</legend>
       {description ? <p className="text-sm leading-6 text-muted-foreground">{description}</p> : null}
 
-      <div className="flex flex-wrap gap-2 sm:gap-3" aria-label={label}>
+      <div className="flex flex-nowrap justify-center gap-1.5 overflow-x-auto pb-1 sm:gap-3" aria-label={label}>
         {digits.map((digit, index) => (
           <input
             key={index}
@@ -155,7 +155,7 @@ export function OtpCodeInput({
             onChange={(event) => handleChange(index, event.target.value)}
             onKeyDown={(event) => handleKeyDown(index, event)}
             onPaste={(event) => handlePaste(index, event)}
-            className="h-14 w-12 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] text-center text-lg font-semibold tracking-[0.18em] text-foreground outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--ring)] disabled:cursor-not-allowed disabled:opacity-75 sm:h-16 sm:w-14"
+            className="h-14 w-11 shrink-0 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] text-center text-lg font-semibold tracking-[0.18em] text-foreground outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--ring)] disabled:cursor-not-allowed disabled:opacity-75 sm:h-16 sm:w-14"
           />
         ))}
       </div>

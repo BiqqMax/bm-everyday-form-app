@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { getAuthNextRoute, type AuthFlow } from "../../lib/auth/flow";
+import { getAuthCallbackUrl, getAuthNextRoute, type AuthFlow } from "../../lib/auth/flow";
 import { createClient } from "../../lib/supabase/client";
 import Button from "../ui/Button";
 
@@ -42,30 +42,34 @@ export function GoogleOAuthButton({
   flow = "login",
   nextPath,
 }: GoogleOAuthButtonProps) {
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const targetPath = nextPath ?? getAuthNextRoute(flow);
 
-  async function handleClick() {
+  async function handleGoogleSignIn() {
+    if (isSubmitting) {
+      return;
+    }
+
     setError(null);
-    setIsLoading(true);
+    setIsSubmitting(true);
 
     const supabase = createClient();
-    const targetPath = nextPath ?? getAuthNextRoute(flow);
-
-    const redirectTo =
-      typeof window !== "undefined"
-        ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(targetPath)}`
-        : undefined;
-
-    const { error: signInError } = await supabase.auth.signInWithOAuth({
+    const redirectTo = getAuthCallbackUrl(targetPath);
+    const { data, error: signInError } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: redirectTo ? { redirectTo } : undefined,
+      options: {
+        redirectTo,
+      },
     });
 
-    if (signInError) {
-      setError(signInError.message);
-      setIsLoading(false);
+    if (signInError || !data.url) {
+      setError("Unable to start Google sign-in.");
+      setIsSubmitting(false);
+      return;
     }
+
+    window.location.assign(data.url);
   }
 
   return (
@@ -74,16 +78,15 @@ export function GoogleOAuthButton({
         type="button"
         variant="secondary"
         className={`w-full justify-center ${className}`.trim()}
-        onClick={handleClick}
-        disabled={isLoading}
-        aria-describedby={error ? "google-oauth-error" : undefined}
+        onClick={handleGoogleSignIn}
+        disabled={isSubmitting}
+        aria-busy={isSubmitting}
       >
         <GoogleIcon />
-        <span>{isLoading ? "Connecting…" : label}</span>
+        <span>{label}</span>
       </Button>
-
       {error ? (
-        <p id="google-oauth-error" className="text-sm leading-6 text-destructive" role="alert">
+        <p className="text-sm leading-6 text-destructive" role="alert">
           {error}
         </p>
       ) : null}

@@ -1,54 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { type FormEvent, useState } from "react";
+import { useActionState, useState } from "react";
 
 import { AuthShell } from "../../components/auth/AuthShell";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
-import { getAuthVerifyUrl } from "../../lib/auth/flow";
-import { createClient } from "../../lib/supabase/client";
+import { forgotPasswordAction } from "../../lib/auth/actions";
+import { AUTH_ACTION_INITIAL_STATE } from "../../lib/auth/action-state";
 
 export default function ForgotPasswordPage() {
-  const router = useRouter();
+  const [state, formAction] = useActionState(forgotPasswordAction, AUTH_ACTION_INITIAL_STATE);
   const [email, setEmail] = useState("");
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-    setMessage(null);
-    setIsSubmitting(true);
-
-    const emailValue = email.trim();
-    const supabase = createClient();
-    const redirectTo =
-      typeof window !== "undefined"
-        ? `${window.location.origin}/auth/callback?next=${encodeURIComponent("/reset-password")}`
-        : undefined;
-
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(emailValue, {
-      redirectTo,
-    });
-
-    if (resetError) {
-      setError(resetError.message);
-      setIsSubmitting(false);
-      return;
-    }
-
-    setMessage("If an account exists for that email, we sent a one-time recovery code.");
-    router.replace(getAuthVerifyUrl("reset", emailValue, "/reset-password"));
-    router.refresh();
-  }
 
   return (
     <AuthShell
       title="Reset your password"
-      description="Enter the email tied to your account and we’ll send a recovery code."
+      description="Enter the email tied to your account and we’ll send a recovery link."
       footer={
         <p className="text-center text-sm text-muted-foreground">
           Remembered it?{" "}
@@ -58,7 +26,7 @@ export default function ForgotPasswordPage() {
         </p>
       }
     >
-      <form className="space-y-4" onSubmit={handleSubmit}>
+      <form className="space-y-4" action={formAction}>
         <Input
           id="email"
           name="email"
@@ -71,20 +39,20 @@ export default function ForgotPasswordPage() {
           required
         />
 
-        {error ? (
+        {state.status === "error" ? (
           <p className="text-sm leading-6 text-destructive" role="alert">
-            {error}
+            {state.message}
           </p>
         ) : null}
 
-        {message ? (
+        {state.status === "success" ? (
           <p className="text-sm leading-6 text-foreground" role="status">
-            {message}
+            {state.message}
           </p>
         ) : null}
 
-        <Button type="submit" variant="primary" className="w-full" disabled={isSubmitting}>
-          {isSubmitting ? "Sending code…" : "Send recovery code"}
+        <Button type="submit" variant="primary" className="w-full">
+          Send recovery link
         </Button>
       </form>
     </AuthShell>

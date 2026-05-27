@@ -1,20 +1,23 @@
 "use client";
 
+import Link from "next/link";
+import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 
 import { AuthShell } from "../../../components/auth/AuthShell";
-import Button from "../../../components/ui/Button";
 import { OtpCodeInput } from "../../../components/auth/OtpCodeInput";
+import Button from "../../../components/ui/Button";
 import { createClient } from "../../../lib/supabase/client";
 import {
-  getAuthNextRoute,
-  getAuthTransitionUrl,
+  OTP_LENGTH,
   OTP_RESEND_COOLDOWN_SECONDS,
+  RESET_PASSWORD_ROUTE,
+  getAuthCallbackUrl,
+  getAuthNextRoute,
   type AuthFlow,
 } from "../../../lib/auth/flow";
-import { normalizeEmail, sanitizeAuthInput } from "../../../lib/utils/validators";
+import { isSafeRedirectPath, normalizeEmail, sanitizeAuthInput } from "../../../lib/utils/validators";
 
 function getFlowLabel(flow: AuthFlow) {
   if (flow === "signup") {
@@ -28,16 +31,24 @@ function getFlowLabel(flow: AuthFlow) {
   return "Verify your sign-in";
 }
 
-function getFlowDescription(flow: AuthFlow) {
+function getFlowDescription(flow: AuthFlow, email: string) {
   if (flow === "signup") {
-    return undefined;
+    return `We sent the code to ${email}.\n\nIf you do not see it, check your spam or junk folder.`;
   }
 
   if (flow === "reset") {
-    return "Enter your recovery code.";
+    return "Enter the recovery code sent to your email.";
   }
 
   return "Enter the code to continue.";
+}
+
+function getDefaultNextPath(flow: AuthFlow) {
+  if (flow === "reset") {
+    return RESET_PASSWORD_ROUTE;
+  }
+
+  return getAuthNextRoute(flow);
 }
 
 export default function AuthVerifyPage() {
@@ -46,17 +57,17 @@ export default function AuthVerifyPage() {
 
   const flow = (searchParams.get("flow") as AuthFlow | null) ?? "signup";
   const email = normalizeEmail(searchParams.get("email") ?? "");
-  const nextPath = searchParams.get("next") ?? getAuthNextRoute(flow);
+  const nextPath = isSafeRedirectPath(searchParams.get("next"), getDefaultNextPath(flow));
   const errorParam = searchParams.get("error");
 
   const [code, setCode] = useState("");
-  const [message, setMessage] = useState<string | null>(errorParam);
+  const [message, setMessage] = useState<string | null>(errorParam ? sanitizeAuthInput(errorParam) : null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
 
+  const isReady = useMemo(() => code.length === OTP_LENGTH, [code]);
   const canResend = cooldownRemaining === 0 && !isSubmitting;
-  const isReady = useMemo(() => code.length === 6, [code]);
 
   useEffect(() => {
     if (!cooldownRemaining) {
@@ -106,7 +117,7 @@ export default function AuthVerifyPage() {
     return null;
   }
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
     setMessage(null);
@@ -120,9 +131,7 @@ export default function AuthVerifyPage() {
       return;
     }
 
-    const transitionUrl = getAuthTransitionUrl(nextPath);
-    router.replace(transitionUrl);
-    router.refresh();
+    window.location.assign(getAuthCallbackUrl(nextPath));
   }
 
   async function handleResend() {
@@ -131,8 +140,7 @@ export default function AuthVerifyPage() {
     setIsSubmitting(true);
 
     const supabase = createClient();
-    const redirectTo =
-      typeof window !== "undefined" ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}` : undefined;
+    const redirectTo = getAuthCallbackUrl(nextPath);
 
     let resendErrorMessage: string | null = null;
 
@@ -144,14 +152,18 @@ export default function AuthVerifyPage() {
     } else if (flow === "login") {
       const { error: resendError } = await supabase.auth.signInWithOtp({
         email,
-        options: redirectTo ? { emailRedirectTo: redirectTo } : undefined,
+        options: {
+          emailRedirectTo: redirectTo,
+        },
       });
       resendErrorMessage = resendError?.message ?? null;
     } else {
       const { error: resendError } = await supabase.auth.resend({
         type: "signup",
         email,
-        options: redirectTo ? { emailRedirectTo: redirectTo } : undefined,
+        options: {
+          emailRedirectTo: redirectTo,
+        },
       });
       resendErrorMessage = resendError?.message ?? null;
     }
@@ -170,7 +182,7 @@ export default function AuthVerifyPage() {
   return (
     <AuthShell
       title={getFlowLabel(flow)}
-      description={getFlowDescription(flow)}
+      description={getFlowDescription(flow, email)}
       footer={
         <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
           <Link href="/login" className="font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
@@ -183,13 +195,6 @@ export default function AuthVerifyPage() {
       }
     >
       <form className="space-y-5" onSubmit={handleSubmit}>
-        <div className="space-y-1 text-sm leading-6 text-muted-foreground">
-          <p>
-            We sent the code to <span className="font-medium text-foreground">{sanitizeAuthInput(email)}</span>.
-          </p>
-          <p>If you do not see it, check your spam or junk folder.</p>
-        </div>
-
         <OtpCodeInput value={code} onChange={setCode} disabled={isSubmitting} />
 
         {error ? (

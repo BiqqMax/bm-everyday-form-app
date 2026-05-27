@@ -1,10 +1,9 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useActionState, useMemo, useState, type FormEvent } from "react";
 
-import { getAuthTransitionUrl, DASHBOARD_ROUTE } from "../../lib/auth/flow";
-import { createClient } from "../../lib/supabase/client";
+import { completeOnboardingAction } from "../../lib/auth/actions";
+import { AUTH_ACTION_INITIAL_STATE } from "../../lib/auth/action-state";
 import Button from "../ui/Button";
 import Card, { CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../ui/Card";
 import Input from "../ui/Input";
@@ -15,7 +14,6 @@ type OnboardingStep = 1 | 2;
 
 type OnboardingFormProps = {
   userId: string;
-  email: string;
   initialAccountType?: DatabaseAccountType | null;
   initialDisplayName?: string | null;
   initialOrganizationName?: string | null;
@@ -47,31 +45,19 @@ function mapAccountTypeToChoice(accountType?: DatabaseAccountType | null): Accou
   return accountType === "organization" ? "business" : "personal";
 }
 
-function mapChoiceToDatabaseAccountType(choice: AccountChoice): DatabaseAccountType {
-  return choice === "personal" ? "individual" : "organization";
-}
-
-function getStepLabel(step: OnboardingStep) {
-  return `Step ${step} of 2`;
-}
 
 export default function OnboardingForm({
   userId,
-  email,
   initialAccountType,
   initialDisplayName = "",
   initialOrganizationName = "",
 }: OnboardingFormProps) {
-  const router = useRouter();
+  const [state, formAction, isPending] = useActionState(completeOnboardingAction, AUTH_ACTION_INITIAL_STATE);
   const [accountType, setAccountType] = useState<AccountChoice>(mapAccountTypeToChoice(initialAccountType));
   const [step, setStep] = useState<OnboardingStep>(1);
   const [displayName, setDisplayName] = useState(initialDisplayName ?? "");
   const [organizationName, setOrganizationName] = useState(initialOrganizationName ?? "");
-  const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const requiresOrganization = accountType !== "personal";
-  const stepLabel = getStepLabel(step);
 
   const helperText = useMemo(() => {
     if (step === 1) {
@@ -90,75 +76,29 @@ export default function OnboardingForm({
   }, [accountType, step]);
 
   function goToStep2() {
-    setError(null);
     setStep(2);
   }
 
   function goBackToStep1() {
-    setError(null);
     setStep(1);
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
     if (step === 1) {
+      event.preventDefault();
       goToStep2();
-      return;
     }
-
-    const trimmedDisplayName = displayName.trim();
-    const trimmedOrganizationName = organizationName.trim();
-
-    if (accountType === "personal" && !trimmedDisplayName) {
-      setError("Please enter your display name.");
-      return;
-    }
-
-    if (requiresOrganization && !trimmedOrganizationName) {
-      setError("Please enter your organization name.");
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    const supabase = createClient();
-    const { error: updateError } = await supabase.from("profiles").upsert(
-      {
-        id: userId,
-        email: email.trim(),
-        account_type: mapChoiceToDatabaseAccountType(accountType),
-        display_name: accountType === "personal" ? trimmedDisplayName : null,
-        organization_name: requiresOrganization ? trimmedOrganizationName : null,
-        onboarding_completed: true,
-        updated_at: new Date().toISOString(),
-      },
-      {
-        onConflict: "id",
-      },
-    );
-
-    if (updateError) {
-      setError(updateError.message);
-      setIsSubmitting(false);
-      return;
-    }
-
-    router.replace(getAuthTransitionUrl(DASHBOARD_ROUTE, "Your profile is set up. Taking you to your dashboard."));
-    router.refresh();
   }
 
   return (
     <Card className="w-full max-w-2xl">
-      <form onSubmit={handleSubmit}>
+      <form action={formAction} onSubmit={handleSubmit}>
+        <input type="hidden" name="userId" value={userId} />
+        <input type="hidden" name="accountType" value={accountType} />
         <CardHeader className="space-y-2 px-6 pt-6">
-          <div className="flex items-center justify-between gap-3">
-            <div className="inline-flex rounded-full border border-[var(--border)] bg-[var(--surface-subtle)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
-              {stepLabel}
-            </div>
+          <div className="flex items-center justify-between gap-4">
+            <CardTitle className="text-2xl">Finish your setup</CardTitle>
           </div>
-          <CardTitle className="text-2xl">Finish your setup</CardTitle>
           <CardDescription>{helperText}</CardDescription>
         </CardHeader>
 
@@ -184,7 +124,7 @@ export default function OnboardingForm({
                       <span className="flex items-center gap-3">
                         <input
                           type="radio"
-                          name="accountType"
+                          name="accountTypeSelection"
                           value={choice.value}
                           checked={isSelected}
                           readOnly
@@ -238,9 +178,9 @@ export default function OnboardingForm({
             </>
           ) : null}
 
-          {error ? (
+          {state.status === "error" ? (
             <p className="text-sm leading-6 text-destructive" role="alert">
-              {error}
+              {state.message}
             </p>
           ) : null}
         </CardContent>
@@ -251,8 +191,8 @@ export default function OnboardingForm({
               Continue
             </Button>
           ) : (
-            <Button type="submit" className="w-full sm:flex-1" disabled={isSubmitting}>
-              {isSubmitting ? "Saving…" : "Finish setup"}
+            <Button type="submit" className="w-full sm:flex-1" disabled={isPending}>
+              {isPending ? "Saving…" : "Finish setup"}
             </Button>
           )}
         </CardFooter>

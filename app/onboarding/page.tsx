@@ -35,13 +35,12 @@ export default async function OnboardingPage() {
     <main className="min-h-screen bg-background text-foreground">
       <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-4 py-6 sm:px-6 lg:px-8">
         <header className="flex items-center justify-between gap-4">
-          <BrandMark href="/" />
+          <BrandMark href="" />
         </header>
 
         <div className="flex flex-1 items-center justify-center py-10">
           <OnboardingForm
             userId={user.id}
-            email={profile?.email ?? user.email ?? ""}
             initialAccountType={profile?.account_type ?? null}
             initialDisplayName={profile?.display_name ?? null}
             initialOrganizationName={profile?.organization_name ?? null}

@@ -1,14 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { getFriendlyActionMessage } from "../utils/friendly-error";
 import { getServerSupabaseClient } from "../supabase/server";
 
 export type DashboardActionState = {
   status: "idle" | "success" | "error";
   message: string;
 };
-
-const DEFAULT_ERROR = "Something went wrong. Please try again.";
 
 function getString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -41,7 +40,7 @@ async function getAuthenticatedUser() {
   } = await supabase.auth.getUser();
 
   if (error || !user) {
-    throw new Error("You must be signed in to manage forms.");
+    throw new Error("Please sign in again to continue.");
   }
 
   return { supabase, user };
@@ -55,7 +54,7 @@ export async function createFormAction(_: DashboardActionState, formData: FormDa
     const { supabase, user } = await getAuthenticatedUser();
 
     if (!title) {
-      return { status: "error", message: "A form title is required." };
+      return { status: "error", message: "Please add a form title." };
     }
 
     const { error } = await supabase.from("forms").insert({
@@ -67,7 +66,7 @@ export async function createFormAction(_: DashboardActionState, formData: FormDa
     });
 
     if (error) {
-      return { status: "error", message: error.message || DEFAULT_ERROR };
+      return { status: "error", message: getFriendlyActionMessage(error) };
     }
 
     revalidatePath("/dashboard");
@@ -75,7 +74,7 @@ export async function createFormAction(_: DashboardActionState, formData: FormDa
   } catch (error) {
     return {
       status: "error",
-      message: error instanceof Error ? error.message : DEFAULT_ERROR,
+      message: getFriendlyActionMessage(error),
     };
   }
 }
@@ -89,7 +88,7 @@ export async function updateFormAction(_: DashboardActionState, formData: FormDa
     const { supabase, user } = await getAuthenticatedUser();
 
     if (!formId) {
-      return { status: "error", message: "Missing form id." };
+      return { status: "error", message: "Please choose a form." };
     }
 
     if (!title) {
@@ -104,11 +103,11 @@ export async function updateFormAction(_: DashboardActionState, formData: FormDa
       .maybeSingle();
 
     if (lookupError) {
-      return { status: "error", message: lookupError.message || DEFAULT_ERROR };
+      return { status: "error", message: getFriendlyActionMessage(lookupError) };
     }
 
     if (!ownedForm) {
-      return { status: "error", message: "Form not found or access denied." };
+      return { status: "error", message: "We couldn’t find that form." };
     }
 
     const { error } = await supabase
@@ -122,7 +121,7 @@ export async function updateFormAction(_: DashboardActionState, formData: FormDa
       .eq("owner_id", user.id);
 
     if (error) {
-      return { status: "error", message: error.message || DEFAULT_ERROR };
+      return { status: "error", message: getFriendlyActionMessage(error) };
     }
 
     revalidatePath("/dashboard");
@@ -130,7 +129,7 @@ export async function updateFormAction(_: DashboardActionState, formData: FormDa
   } catch (error) {
     return {
       status: "error",
-      message: error instanceof Error ? error.message : DEFAULT_ERROR,
+      message: getFriendlyActionMessage(error),
     };
   }
 }
@@ -141,7 +140,7 @@ export async function deleteFormAction(_: DashboardActionState, formData: FormDa
     const { supabase, user } = await getAuthenticatedUser();
 
     if (!formId) {
-      return { status: "error", message: "Missing form id." };
+      return { status: "error", message: "Please choose a form." };
     }
 
     const { data: ownedForm, error: lookupError } = await supabase
@@ -152,17 +151,17 @@ export async function deleteFormAction(_: DashboardActionState, formData: FormDa
       .maybeSingle();
 
     if (lookupError) {
-      return { status: "error", message: lookupError.message || DEFAULT_ERROR };
+      return { status: "error", message: getFriendlyActionMessage(lookupError) };
     }
 
     if (!ownedForm) {
-      return { status: "error", message: "Form not found or access denied." };
+      return { status: "error", message: "We couldn’t find that form." };
     }
 
     const { error } = await supabase.from("forms").delete().eq("id", formId).eq("owner_id", user.id);
 
     if (error) {
-      return { status: "error", message: error.message || DEFAULT_ERROR };
+      return { status: "error", message: getFriendlyActionMessage(error) };
     }
 
     revalidatePath("/dashboard");
@@ -170,7 +169,7 @@ export async function deleteFormAction(_: DashboardActionState, formData: FormDa
   } catch (error) {
     return {
       status: "error",
-      message: error instanceof Error ? error.message : DEFAULT_ERROR,
+      message: getFriendlyActionMessage(error),
     };
   }
 }

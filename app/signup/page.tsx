@@ -1,70 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { type FormEvent, useState } from "react";
+import { useActionState, useState } from "react";
 
 import { AuthShell } from "../../components/auth/AuthShell";
 import { GoogleOAuthButton } from "../../components/auth/GoogleOAuthButton";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
-import {
-  ONBOARDING_ROUTE,
-  getAuthTransitionUrl,
-  getAuthVerifyUrl,
-} from "../../lib/auth/flow";
-import { createClient } from "../../lib/supabase/client";
+import { signupAction } from "../../lib/auth/actions";
+import { AUTH_ACTION_INITIAL_STATE } from "../../lib/auth/action-state";
+import { ONBOARDING_ROUTE } from "../../lib/auth/flow";
 
 export default function SignupPage() {
-  const router = useRouter();
+  const [state, formAction] = useActionState(signupAction, AUTH_ACTION_INITIAL_STATE);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const hasEmailAtSymbol = email.includes("@");
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-    setMessage(null);
-
-    if (password !== confirmPassword) {
-      setError("Passwords do not match.");
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    const emailValue = email.trim();
-    const supabase = createClient();
-    const redirectTo =
-      typeof window !== "undefined"
-        ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(ONBOARDING_ROUTE)}`
-        : undefined;
-
-    const { data, error: signUpError } = await supabase.auth.signUp({
-      email: emailValue,
-      password,
-      options: redirectTo ? { emailRedirectTo: redirectTo } : undefined,
-    });
-
-    if (signUpError) {
-      setError(signUpError.message);
-      setIsSubmitting(false);
-      return;
-    }
-
-    if (data.session) {
-      router.replace(getAuthTransitionUrl(ONBOARDING_ROUTE));
-      router.refresh();
-      return;
-    }
-
-    router.replace(getAuthVerifyUrl("signup", emailValue, ONBOARDING_ROUTE));
-    router.refresh();
-  }
 
   return (
     <AuthShell
@@ -86,7 +38,8 @@ export default function SignupPage() {
           <span className="px-3 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">or</span>
           <div className="h-px flex-1 bg-border" />
         </div>
-        <form className="space-y-4" onSubmit={handleSubmit}>
+
+        <form className="space-y-4" action={formAction}>
           <Input
             id="email"
             name="email"
@@ -125,20 +78,20 @@ export default function SignupPage() {
                 required
               />
 
-              {error ? (
+              {state.status === "error" ? (
                 <p className="text-sm leading-6 text-destructive" role="alert">
-                  {error}
+                  {state.message}
                 </p>
               ) : null}
 
-              {message ? (
+              {state.status === "success" ? (
                 <p className="text-sm leading-6 text-foreground" role="status">
-                  {message}
+                  {state.message}
                 </p>
               ) : null}
 
-              <Button type="submit" variant="primary" className="w-full" disabled={isSubmitting}>
-                {isSubmitting ? "Creating account…" : "Create account"}
+              <Button type="submit" variant="primary" className="w-full">
+                Create account
               </Button>
             </>
           ) : (
