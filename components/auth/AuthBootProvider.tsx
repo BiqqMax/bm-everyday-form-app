@@ -6,18 +6,21 @@ import type { User } from "@supabase/supabase-js";
 
 import { createClient } from "../../lib/supabase/client";
 
-type AuthBootContextType = {
+type AuthBootStateType = {
   isBooted: boolean;
   isLoading: boolean;
-  isReady: boolean;
   user: User | null;
   onboardingCompleted: boolean;
+};
+
+type AuthBootContextType = AuthBootStateType & {
+  isReady: boolean;
 };
 
 const AuthBootContext = createContext<AuthBootContextType | undefined>(undefined);
 
 export function AuthBootProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AuthBootContextType>({
+  const [state, setState] = useState<AuthBootStateType>({
     isBooted: false,
     isLoading: true,
     user: null,
