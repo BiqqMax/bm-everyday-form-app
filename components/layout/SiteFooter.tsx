@@ -122,9 +122,9 @@ function SocialLinkButton({ link }: { link: SocialLink }) {
   );
 }
 
-export default function SiteFooter() {
+export default function SiteFooter({ className = "" }: { className?: string }) {
   return (
-    <footer className="border-t border-[var(--border)] bg-background">
+    <footer className={`border-t border-[var(--border)] bg-background ${className}`.trim()}>
       <Container className="py-8 sm:py-10">
         <div className="space-y-8">
           <div className="space-y-4">

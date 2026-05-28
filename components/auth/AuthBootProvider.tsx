@@ -9,6 +9,7 @@ import { createClient } from "../../lib/supabase/client";
 type AuthBootContextType = {
   isBooted: boolean;
   isLoading: boolean;
+  isReady: boolean;
   user: User | null;
   onboardingCompleted: boolean;
 };
@@ -82,7 +83,7 @@ export function AuthBootProvider({ children }: { children: ReactNode }) {
     };
   }, [router]);
 
-  const value = useMemo(() => state, [state]);
+  const value = useMemo(() => ({ ...state, isReady: state.isBooted }), [state]);
 
   return <AuthBootContext.Provider value={value}>{children}</AuthBootContext.Provider>;
 }

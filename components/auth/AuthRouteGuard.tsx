@@ -3,7 +3,6 @@
 import type { ReactNode } from "react";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-
 import UnifiedLoading from "../ui/UnifiedLoading";
 import { DASHBOARD_ROUTE, LOGIN_ROUTE, ONBOARDING_ROUTE } from "../../lib/auth/flow";
 import { useAuthBoot } from "./AuthBootProvider";
@@ -32,7 +31,7 @@ export function AuthEntryGuard({ children }: AuthEntryGuardProps) {
   }, [destination, isBooted, router, user]);
 
   if (!isBooted) {
-    return <UnifiedLoading title="Checking session..." details="Please wait while we prepare your experience." />;
+    return <UnifiedLoading title="Loading..." />;
   }
 
   if (user) {
@@ -66,11 +65,14 @@ export function ProtectedRouteGuard({ children, expectedPath }: ProtectedRouteGu
       return;
     }
   }, [expectedPath, isBooted, onboardingCompleted, router, user]);
-
+  // While auth is not booted, do not render protected children.
   if (!isBooted) {
-    return <UnifiedLoading title="Verifying session..." details="Please wait while we secure your workspace." />;
+    return <UnifiedLoading title="Loading..." />;
   }
 
+  // After boot, enforce client-side redirects when the session doesn't match
+  // the expected route. If we reach this point and the user is authorized,
+  // render the children.
   if (!user || (expectedPath === "/dashboard" && !onboardingCompleted) || (expectedPath === "/onboarding" && onboardingCompleted)) {
     return null;
   }

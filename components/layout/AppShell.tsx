@@ -1,10 +1,12 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { useAuthBoot } from "../auth/AuthBootProvider";
 import { usePathname } from "next/navigation";
 
 import SiteFooter from "./SiteFooter";
 import HydrationGuard from "./HydrationGuard";
+import UnifiedLoading from "../ui/UnifiedLoading";
 
 const HIDDEN_FOOTER_PATHS = [
   "/dashboard",
@@ -27,14 +29,18 @@ type AppShellProps = {
 export default function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const hideFooter = shouldHideFooter(pathname);
+  const { isBooted } = useAuthBoot();
 
+  if (!isBooted) {
+    return <UnifiedLoading title="Loading…" />;
+  }
   return (
     <div className="flex min-h-screen flex-col">
       <HydrationGuard />
       <div className="flex-1">{children}</div>
 
       {/* Always render footer element to reserve layout space; visually hide when appropriate */}
-      {!hideFooter ? <SiteFooter /> : null}
+      <SiteFooter className={hideFooter ? "invisible" : ""} />
     </div>
   );
 }
