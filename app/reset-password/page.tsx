@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import ResetPasswordForm from "../../components/auth/ResetPasswordForm";
+import { AuthEntryGuard } from "../../components/auth/AuthRouteGuard";
 import { createClient } from "../../lib/supabase/server";
 import { getPostAuthDestination } from "../../lib/auth/post-auth";
 import { DASHBOARD_ROUTE } from "../../lib/auth/flow";
@@ -21,5 +22,9 @@ export default async function ResetPasswordPage() {
     redirect(destination);
   }
 
-  return <ResetPasswordForm />;
+  return (
+    <AuthEntryGuard>
+      <ResetPasswordForm />
+    </AuthEntryGuard>
+  );
 }

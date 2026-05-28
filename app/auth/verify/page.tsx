@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import AuthVerifyClient from "../../../components/auth/AuthVerifyClient";
+import { AuthEntryGuard } from "../../../components/auth/AuthRouteGuard";
 import { getPostAuthDestination } from "../../../lib/auth/post-auth";
 import { createClient } from "../../../lib/supabase/server";
 
@@ -28,5 +29,9 @@ export default async function AuthVerifyPage({
     redirect(destination);
   }
 
-  return <AuthVerifyClient searchParams={resolvedSearchParams} />;
+  return (
+    <AuthEntryGuard>
+      <AuthVerifyClient searchParams={resolvedSearchParams} />
+    </AuthEntryGuard>
+  );
 }

@@ -8,22 +8,13 @@ export async function createClient() {
 
   return createServerClient(getSupabaseUrl(), getSupabaseAnonKey(), {
     cookies: {
-      get(name) {
-        return cookieStore.get(name)?.value;
+      getAll() {
+        return cookieStore.getAll();
       },
-      set(name, value, options) {
-        try {
-          cookieStore.set({ name, value, ...options });
-        } catch (error) {
-          console.error("Supabase cookie set failed", { name, error });
-        }
-      },
-      remove(name, options) {
-        try {
-          cookieStore.set({ name, value: "", ...options, maxAge: 0 });
-        } catch (error) {
-          console.error("Supabase cookie removal failed", { name, error });
-        }
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value, options }) => {
+          cookieStore.set(name, value, options);
+        });
       },
     },
   });

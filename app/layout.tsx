@@ -3,6 +3,7 @@ import Script from 'next/script';
 import type { ReactNode } from 'react';
 
 import ThemeProvider from '../components/theme/ThemeProvider';
+import { AuthBootProvider } from '../components/auth/AuthBootProvider';
 import AppShell from '../components/layout/AppShell';
 import './globals.css';
 
@@ -70,7 +71,9 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen bg-background text-foreground antialiased">
         <ThemeProvider>
+          <AuthBootProvider>
           <AppShell>{children}</AppShell>
+          </AuthBootProvider>
         </ThemeProvider>
       </body>
     </html>

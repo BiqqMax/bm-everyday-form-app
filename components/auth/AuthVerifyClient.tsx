@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { FormEvent } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { AuthShell } from "./AuthShell";
@@ -90,41 +90,11 @@ export default function AuthVerifyClient({ searchParams }: AuthVerifyClientProps
     return () => window.clearInterval(timer);
   }, [cooldownRemaining]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!email) {
       router.replace("/login");
     }
   }, [email, router]);
-
-  async function verifyOtp() {
-    const supabase = createClient();
-
-    if (flow === "reset") {
-      const { error: verifyError } = await supabase.auth.verifyOtp({
-        email,
-        token: code,
-        type: "recovery",
-      });
-
-      if (verifyError) {
-        return verifyError.message;
-      }
-
-      return null;
-    }
-
-    const { error: verifyError } = await supabase.auth.verifyOtp({
-      email,
-      token: code,
-      type: flow === "login" ? "magiclink" : "signup",
-    });
-
-    if (verifyError) {
-      return verifyError.message;
-    }
-
-    return null;
-  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -132,15 +102,28 @@ export default function AuthVerifyClient({ searchParams }: AuthVerifyClientProps
     setMessage(null);
     setIsSubmitting(true);
 
-    const verificationError = await verifyOtp();
+    const response = await fetch("/api/auth/verify", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        email,
+        token: code,
+        flow,
+        nextPath,
+      }),
+    });
 
-    if (verificationError) {
-      setError(verificationError);
+    const data = await response.json();
+
+    if (!response.ok || data.error) {
+      setError(data.error ?? "Unable to verify code.");
       setIsSubmitting(false);
       return;
     }
 
-    window.location.replace(getAuthCallbackUrl(nextPath));
+    window.location.replace(data.redirect ?? nextPath);
   }
 
   async function handleResend() {

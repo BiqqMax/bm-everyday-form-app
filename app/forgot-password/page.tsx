@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import ForgotPasswordForm from "../../components/auth/ForgotPasswordForm";
+import { AuthEntryGuard } from "../../components/auth/AuthRouteGuard";
 import { createClient } from "../../lib/supabase/server";
 import { getPostAuthDestination } from "../../lib/auth/post-auth";
 import { DASHBOARD_ROUTE } from "../../lib/auth/flow";
@@ -21,5 +22,9 @@ export default async function ForgotPasswordPage() {
     redirect(destination);
   }
 
-  return <ForgotPasswordForm />;
+  return (
+    <AuthEntryGuard>
+      <ForgotPasswordForm />
+    </AuthEntryGuard>
+  );
 }

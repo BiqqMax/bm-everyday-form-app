@@ -1,9 +1,14 @@
 import { redirect } from "next/navigation";
 
 import { LandingPage } from "../components/landing/LandingPage";
+import { AuthEntryGuard } from "../components/auth/AuthRouteGuard";
 import { DASHBOARD_ROUTE } from "../lib/auth/flow";
 import { getPostAuthDestination } from "../lib/auth/post-auth";
 import { getServerSupabaseClient } from "../lib/supabase/server";
+
+export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
+export const revalidate = 0;
 
 export default async function Page() {
   const supabase = await getServerSupabaseClient();
@@ -16,5 +21,9 @@ export default async function Page() {
     redirect(destination);
   }
 
-  return <LandingPage />;
+  return (
+    <AuthEntryGuard>
+      <LandingPage />
+    </AuthEntryGuard>
+  );
 }

@@ -6,6 +6,7 @@ import OnboardingForm from "../../components/onboarding/OnboardingForm";
 import { DASHBOARD_ROUTE, LOGIN_ROUTE, ONBOARDING_ROUTE } from "../../lib/auth/flow";
 import { getPostAuthDestination } from "../../lib/auth/post-auth";
 import { getServerSupabaseClient } from "../../lib/supabase/server";
+import { ProtectedRouteGuard } from "../../components/auth/AuthRouteGuard";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -39,21 +40,23 @@ export default async function OnboardingPage() {
     .maybeSingle();
 
   return (
-    <main className="min-h-screen bg-background text-foreground flex flex-col">
-      <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col px-4 py-6 sm:px-6 lg:px-8">
-        <header className="flex items-center justify-between gap-4">
-          <BrandMark href="" />
-        </header>
+    <ProtectedRouteGuard expectedPath="/onboarding">
+      <main className="min-h-screen bg-background text-foreground flex flex-col">
+        <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col px-4 py-6 sm:px-6 lg:px-8">
+          <header className="flex items-center justify-between gap-4">
+            <BrandMark href="" />
+          </header>
 
-        <div className="flex flex-1 items-center justify-center py-10">
-          <OnboardingForm
-            userId={user.id}
-            initialAccountType={profile?.account_type ?? null}
-            initialDisplayName={profile?.display_name ?? null}
-            initialOrganizationName={profile?.organization_name ?? null}
-          />
+          <div className="flex flex-1 items-center justify-center py-10">
+            <OnboardingForm
+              userId={user.id}
+              initialAccountType={profile?.account_type ?? null}
+              initialDisplayName={profile?.display_name ?? null}
+              initialOrganizationName={profile?.organization_name ?? null}
+            />
+          </div>
         </div>
-      </div>
-    </main>
+      </main>
+    </ProtectedRouteGuard>
   );
 }
