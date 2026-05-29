@@ -53,6 +53,26 @@ export async function loginAction(_: AuthActionState, formData: FormData): Promi
   }
 
   const supabase = await getServerSupabaseClient();
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("email", email)
+    .maybeSingle();
+
+  if (profileError) {
+    return {
+      status: "error",
+      message: getFriendlyAuthMessage(profileError),
+    };
+  }
+
+  if (!profile) {
+    return {
+      status: "error",
+      message: "No account found. Please sign up first.",
+    };
+  }
+
   const emailRedirectTo = buildAuthCallbackUrl(DASHBOARD_ROUTE);
 
   const { error } = await supabase.auth.signInWithOtp({

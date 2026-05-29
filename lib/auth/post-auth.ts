@@ -25,17 +25,6 @@ export async function getPostAuthDestination(
   }
 
   if (!profile) {
-    const { error: upsertError } = await supabase.from("profiles").upsert({
-      id: user.id,
-      email: user.email ?? "",
-      account_type: "individual",
-      onboarding_completed: false,
-    });
-
-    if (upsertError) {
-      return "/onboarding";
-    }
-
     return "/onboarding";
   }
 
