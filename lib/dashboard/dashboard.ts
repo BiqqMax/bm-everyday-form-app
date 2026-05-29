@@ -96,6 +96,21 @@ function formatAnswerValue(value: unknown): string {
   return safeString(value);
 }
 
+function formatDateLong(value: string | null) {
+  if (!value) {
+    return "No submissions yet";
+  }
+
+  return new Intl.DateTimeFormat("en-CA", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "UTC",
+  }).format(new Date(value));
+}
+
 function groupBy<T>(rows: T[], keyGetter: (row: T) => string) {
   return rows.reduce<Record<string, T[]>>((acc, row) => {
     const key = keyGetter(row);
