@@ -58,7 +58,7 @@ export default function ForgotPasswordForm() {
               Sending link...
             </span>
           ) : (
-            "Send recovery link"
+            "Send recovery code"
           )}
         </Button>
       </form>

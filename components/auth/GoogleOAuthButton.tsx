@@ -60,6 +60,9 @@ export function GoogleOAuthButton({
       provider: "google",
       options: {
         redirectTo,
+        queryParams: {
+          prompt: "select_account",
+        },
       },
     });
 
