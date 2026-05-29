@@ -7,7 +7,7 @@ import { getDashboardData } from "../../lib/dashboard/dashboard";
 import { getServerSupabaseClient } from "../../lib/supabase/server";
 import { ProtectedRouteGuard } from "../../components/auth/AuthRouteGuard";
 
-// Force fresh server validation on every dashboard entry.
+
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 export const revalidate = 0;
