@@ -1084,8 +1084,6 @@ function MobileFormsPanel({
         onQueryChange={setQuery}
         visibilityFilter={visibilityFilter}
         onVisibilityFilterChange={setVisibilityFilter}
-        filteredCount={filteredForms.length}
-        totalCount={data.forms.length}
       />
 
       <CreateFormCard />
