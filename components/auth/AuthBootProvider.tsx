@@ -6,6 +6,25 @@ import type { User } from "@supabase/supabase-js";
 
 import { createClient } from "../../lib/supabase/client";
 
+function logQueryFailure(queryName: string, error: unknown) {
+  const supabaseError = error as {
+    code?: string;
+    message?: string;
+    details?: string;
+    hint?: string;
+  };
+
+  console.error("QUERY FAILED", {
+    file: "components/auth/AuthBootProvider.tsx",
+    queryName,
+    error,
+    code: supabaseError.code,
+    message: supabaseError.message,
+    details: supabaseError.details,
+    hint: supabaseError.hint,
+  });
+}
+
 type AuthBootStateType = {
   isBooted: boolean;
   isLoading: boolean;
@@ -52,11 +71,15 @@ export function AuthBootProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("onboarding_completed")
         .eq("id", user.id)
         .maybeSingle();
+
+      if (profileError) {
+        logQueryFailure("AuthBootProvider.profile", profileError);
+      }
 
       if (!active) {
         return;

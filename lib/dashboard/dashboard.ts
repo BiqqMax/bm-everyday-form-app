@@ -8,6 +8,9 @@ type DashboardFormRow = {
   description: string | null;
   is_public: boolean;
   public_slug: string;
+  qr_share_token: string;
+  expires_at: string | null;
+  response_limit: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -42,6 +45,10 @@ export type DashboardForm = {
   description: string | null;
   isPublic: boolean;
   publicSlug: string;
+  publicToken: string;
+  expiresAt: string | null;
+  responseLimit: number | null;
+  responseCount: number;
   createdAt: string;
   updatedAt: string;
   fieldCount: number;
@@ -124,14 +131,36 @@ function sortNewest<T>(rows: T[], getCreatedAt: (row: T) => string) {
   return [...rows].sort((left, right) => getCreatedAt(right).localeCompare(getCreatedAt(left)));
 }
 
+function logQueryFailure(queryName: string, error: unknown) {
+  const supabaseError = error as {
+    code?: string;
+    message?: string;
+    details?: string;
+    hint?: string;
+  };
+
+  console.error("QUERY FAILED", {
+    file: "lib/dashboard/dashboard.ts",
+    queryName,
+    error,
+    code: supabaseError.code,
+    message: supabaseError.message,
+    details: supabaseError.details,
+    hint: supabaseError.hint,
+  });
+}
+
 export async function getDashboardData(supabase: SupabaseClient, userId: string): Promise<DashboardData> {
   const formsResult = await supabase
     .from("forms")
-    .select("id,title,description,is_public,public_slug,created_at,updated_at")
+    .select("id,title,description,is_public,public_slug,qr_share_token,expires_at,response_limit,created_at,updated_at")
     .eq("owner_id", userId)
     .order("created_at", { ascending: false });
 
-  if (formsResult.error) throw formsResult.error;
+  if (formsResult.error) {
+    logQueryFailure("getDashboardData.forms", formsResult.error);
+    throw formsResult.error;
+  }
 
   const forms = (formsResult.data ?? []) as DashboardFormRow[];
 
@@ -165,8 +194,14 @@ export async function getDashboardData(supabase: SupabaseClient, userId: string)
       .order("created_at", { ascending: false }),
   ]);
 
-  if (fieldsResult.error) throw fieldsResult.error;
-  if (submissionsResult.error) throw submissionsResult.error;
+  if (fieldsResult.error) {
+    logQueryFailure("getDashboardData.form_fields", fieldsResult.error);
+    throw fieldsResult.error;
+  }
+  if (submissionsResult.error) {
+    logQueryFailure("getDashboardData.submissions", submissionsResult.error);
+    throw submissionsResult.error;
+  }
 
   const fields = (fieldsResult.data ?? []) as DashboardFieldRow[];
   const submissions = (submissionsResult.data ?? []) as DashboardSubmissionRow[];
@@ -181,7 +216,10 @@ export async function getDashboardData(supabase: SupabaseClient, userId: string)
           .order("created_at", { ascending: false })
       : { data: [], error: null };
 
-  if (answersResult.error) throw answersResult.error;
+  if (answersResult.error) {
+    logQueryFailure("getDashboardData.submission_answers", answersResult.error);
+    throw answersResult.error;
+  }
 
   const answers = (answersResult.data ?? []) as DashboardAnswerRow[];
 
@@ -227,6 +265,10 @@ export async function getDashboardData(supabase: SupabaseClient, userId: string)
       description: form.description,
       isPublic: form.is_public,
       publicSlug: form.public_slug,
+      publicToken: form.qr_share_token,
+      expiresAt: form.expires_at,
+      responseLimit: form.response_limit,
+      responseCount: formSubmissions.length,
       createdAt: form.created_at,
       updatedAt: form.updated_at,
       fieldCount: formFields.length,
