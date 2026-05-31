@@ -462,12 +462,25 @@ function CreateFormCard() {
 
 function EditFormCard({
   form,
+<<<<<<< HEAD
   onShare,
   onOpen,
 }: {
   form: DashboardForm;
   onShare: (form: DashboardForm) => void;
   onOpen: (form: DashboardForm) => void;
+=======
+  onOpen,
+  onEdit,
+  onShare,
+  onDelete,
+}: {
+  form: DashboardForm;
+  onOpen: (form: DashboardForm) => void;
+  onEdit: (form: DashboardForm) => void;
+  onShare: (form: DashboardForm) => void;
+  onDelete: (form: DashboardForm) => void;
+>>>>>>> dashboard-page
 }) {
   const [state, formAction, isPending] = useActionState(updateFormAction, initialActionState);
   const [deleteState, deleteAction, isDeletePending] = useActionState(deleteFormAction, initialActionState);
@@ -750,7 +763,18 @@ function WorkspaceForms({
       {filteredForms.length ? (
         <div className="grid gap-4">
           {filteredForms.map((form) => (
+<<<<<<< HEAD
             <EditFormCard key={form.id} form={form} onShare={onShareForm} onOpen={handleOpenForm} />
+=======
+            <EditFormCard
+              key={form.id}
+              form={form}
+              onOpen={handleOpenForm}
+              onEdit={handleEditForm}
+              onShare={onShareForm}
+              onDelete={handleDeleteForm}
+            />
+>>>>>>> dashboard-page
           ))}
         </div>
       ) : (
@@ -1070,6 +1094,23 @@ function MobileFormsPanel({
     });
   }, [data.forms, query, visibilityFilter]);
 
+<<<<<<< HEAD
+=======
+  const handleOpenForm = (form: DashboardForm) => {
+    window.location.hash = `form-${form.id}`;
+  };
+
+  const handleEditForm = (form: DashboardForm) => {
+    window.location.hash = `form-${form.id}`;
+  };
+
+  const handleDeleteForm = (form: DashboardForm) => {
+    const confirmDelete = window.confirm(`Delete "${form.title}"? This cannot be undone.`);
+    if (!confirmDelete) return;
+    window.location.hash = `form-${form.id}`;
+  };
+
+>>>>>>> dashboard-page
   return (
     <div className="space-y-6">
       <SectionHeader
@@ -1084,20 +1125,44 @@ function MobileFormsPanel({
         onQueryChange={setQuery}
         visibilityFilter={visibilityFilter}
         onVisibilityFilterChange={setVisibilityFilter}
+<<<<<<< HEAD
         filteredCount={filteredForms.length}
         totalCount={data.forms.length}
+=======
+>>>>>>> dashboard-page
       />
 
       <CreateFormCard />
 
+<<<<<<< HEAD
       <FormsTable forms={filteredForms} />
+=======
+      <FormsTable
+        forms={filteredForms}
+        onOpen={handleOpenForm}
+        onEdit={handleEditForm}
+        onShare={onShareForm}
+        onDelete={handleDeleteForm}
+      />
+>>>>>>> dashboard-page
 
       {filteredForms.length ? (
         <section className="space-y-4">
           <SectionHeader eyebrow="Editor" title="Edit forms" description="Expand cards to update form details or share links." />
           <div className="grid gap-4">
             {filteredForms.map((form) => (
+<<<<<<< HEAD
               <EditFormCard key={form.id} form={form} onShare={onShareForm} />
+=======
+              <EditFormCard
+                key={form.id}
+                form={form}
+                onOpen={handleOpenForm}
+                onEdit={handleEditForm}
+                onShare={onShareForm}
+                onDelete={handleDeleteForm}
+              />
+>>>>>>> dashboard-page
             ))}
           </div>
         </section>
