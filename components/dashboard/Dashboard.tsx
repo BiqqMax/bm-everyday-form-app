@@ -1,10 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useActionState, useMemo, useState } from "react";
 
-import LogoutButton from "../auth/LogoutButton";
-import BrandMark from "../layout/BrandMark";
 import Button from "../ui/Button";
 import Card from "../ui/Card";
 import Input from "../ui/Input";
@@ -12,10 +9,12 @@ import type { DashboardActionState } from "../../lib/dashboard/actions";
 import { createFormAction, deleteFormAction, updateFormAction } from "../../lib/dashboard/actions";
 import { buildPublicFormUrl, getShareStatus, getShareStatusLabel } from "../../lib/forms/public";
 import type { DashboardData, DashboardForm, DashboardSubmission } from "../../lib/dashboard/dashboard";
+import type { SettingsData } from "../../lib/settings/data";
 import ShareModal from "./ShareModal";
+import { useDesktopTab } from "./DesktopTabContext";
+import { MobileSettingsPanel, WorkspaceSettings } from "./SettingsPanels";
 
 type DashboardSource = DashboardData & Record<string, unknown>;
-type DesktopTab = "overview" | "forms" | "responses" | "analytics";
 type MobileTab = "home" | "forms" | "responses" | "settings";
 type FormVisibilityFilter = "all" | "public" | "private";
 type ShareTarget = {
@@ -27,20 +26,6 @@ const initialActionState: DashboardActionState = {
   status: "idle",
   message: "",
 };
-
-const DESKTOP_NAV_ITEMS: Array<{ label: string; tab?: DesktopTab; href?: string }> = [
-  { label: "Dashboard", tab: "overview" },
-  { label: "Forms", tab: "forms" },
-  { label: "Responses", tab: "responses" },
-  { label: "Analytics", tab: "analytics" },
-  { label: "Settings", href: "/settings" },
-];
-
-const DESKTOP_TABS: Array<{ id: Exclude<DesktopTab, "overview">; label: string }> = [
-  { id: "forms", label: "Forms" },
-  { id: "responses", label: "Responses" },
-  { id: "analytics", label: "Analytics" },
-];
 
 const MOBILE_TABS: Array<{ id: MobileTab; label: string }> = [
   { id: "home", label: "Home" },
@@ -59,19 +44,6 @@ function firstText(...values: unknown[]) {
     if (typeof value === "number" && Number.isFinite(value)) return String(value);
   }
   return "";
-}
-
-function initials(name: string) {
-  const words = name
-    .split(/\s+/)
-    .map((word) => word.trim())
-    .filter(Boolean);
-
-  if (!words.length) return "EF";
-  return words
-    .slice(0, 2)
-    .map((word) => word[0]?.toUpperCase() ?? "")
-    .join("");
 }
 
 function formatDateLong(value: string | null) {
@@ -584,49 +556,109 @@ function WorkspaceOverview({
   data: DashboardData;
   userEmail?: string | null;
 }) {
-  const recentSubmissions = data.recentSubmissions.slice(0, 4);
+  const { setDesktopTab } = useDesktopTab();
+  const source = data as DashboardSource;
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good Morning" : hour < 18 ? "Good Afternoon" : "Good Evening";
+  const displayName = firstText(source.name, source.fullName, userEmail ? userEmail.split("@")[0] : "", "User");
+  const activeForms = data.forms.filter((form) => form.isPublic).length;
+  const recentResponses = data.recentSubmissions.slice(0, 2);
 
   return (
-    <div className="space-y-3">
-      <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
-        <CompactStat
-          label="Total Forms"
-          value={String(data.summary.totalForms)}
-          hint={data.summary.totalForms ? "Workspace forms in one place" : "No forms created yet"}
-        />
-        <CompactStat
-          label="Total Responses"
-          value={String(data.summary.totalSubmissions)}
-          hint={data.summary.totalSubmissions ? "Collected across all published forms" : "Waiting on first response"}
-        />
-        <CompactStat
-          label="Active Forms"
-          value={String(data.forms.filter((form) => form.isPublic).length)}
-          hint="Public forms ready to share"
-        />
-        <CompactStat
-          label="Response Rate"
-          value={data.summary.totalForms ? `${averagePerForm(data.summary.totalSubmissions, data.summary.totalForms).toFixed(1)}x` : "0x"}
-          hint="Average responses per form"
-        />
+    <div className="space-y-4">
+      <Card className="border-[var(--border)] bg-[var(--surface)] p-4 shadow-none">
+        <div className="space-y-1.5">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[var(--muted-foreground)]">Overview</p>
+          <h2 className="text-lg font-semibold tracking-tight text-[var(--foreground)]">
+            {greeting}, {displayName}
+          </h2>
+          <p className="text-xs leading-5 text-[var(--muted-foreground)]">
+            {data.forms.length === 0 ? "Create your first form to get started." : "You have active forms in your workspace."}
+          </p>
+        </div>
+      </Card>
+
+      <div className="grid grid-cols-2 gap-2">
+        {[
+          {
+            label: "Forms",
+            value: String(data.summary.totalForms),
+            hint: "Workspace total",
+          },
+          {
+            label: "Responses",
+            value: String(data.summary.totalSubmissions),
+            hint: "Collected so far",
+          },
+          {
+            label: "Active",
+            value: String(activeForms),
+            hint: "Ready to share",
+          },
+          {
+            label: "Rate",
+            value: data.summary.totalForms ? `${averagePerForm(data.summary.totalSubmissions, data.summary.totalForms).toFixed(1)}x` : "0x",
+            hint: "Per form",
+          },
+        ].map((stat) => (
+          <Card key={stat.label} className="border-[var(--border)] bg-[var(--surface)] px-3 py-3 shadow-none">
+            <div className="space-y-1">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">{stat.label}</p>
+              <p className="text-[1.05rem] font-semibold tracking-tight text-[var(--foreground)]">{stat.value}</p>
+              <p className="text-[11px] leading-4 text-[var(--muted-foreground)]">{stat.hint}</p>
+            </div>
+          </Card>
+        ))}
       </div>
 
-      <CreateFormCard />
-
-      <Card className="border-[var(--border)] bg-[var(--surface)] p-4 shadow-none">
-        <div className="flex items-center justify-between gap-3">
-          <div className="space-y-0.5">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--muted-foreground)]">Recent Activity</p>
-            <h3 className="text-lg font-semibold tracking-tight text-[var(--foreground)]">Latest responses</h3>
-          </div>
-          {userEmail ? (
-            <span className="inline-flex rounded-full border border-[var(--border)] bg-[var(--surface-subtle)] px-2.5 py-1 text-[10px] font-medium text-[var(--muted-foreground)]">
-              {userEmail}
-            </span>
-          ) : null}
+      <Card className="border-[var(--border)] bg-[var(--surface)] p-3 shadow-none">
+        <div className="inline-flex flex-wrap items-center gap-2">
+          <Button onClick={() => setDesktopTab("forms")} className="w-fit px-4">
+            Create Form
+          </Button>
+          <Button variant="secondary" size="sm" className="w-fit px-4" onClick={() => setDesktopTab("forms")}>
+            View Forms
+          </Button>
         </div>
-        <div className="mt-3">
-          <SubmissionsList submissions={recentSubmissions} />
+      </Card>
+
+      <Card className="border-[var(--border)] bg-[var(--surface)] p-3 shadow-none">
+        <div className="space-y-3">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--muted-foreground)]">Recent responses</p>
+
+          <div className="space-y-2">
+            {recentResponses.length ? (
+              recentResponses.map((submission) => (
+                <Card key={submission.id} className="border-[var(--border)] bg-[var(--surface-subtle)] p-3 shadow-none">
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 space-y-1">
+                        <p className="truncate text-sm font-semibold tracking-tight text-[var(--foreground)]">{submission.formTitle}</p>
+                        <p className="text-[11px] leading-4 text-[var(--muted-foreground)]">{formatDateLong(submission.createdAt)}</p>
+                      </div>
+                      <p className="shrink-0 text-[11px] font-medium text-[var(--muted-foreground)]">
+                        {submission.answers.length} answer{submission.answers.length === 1 ? "" : "s"}
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      {submission.answers.slice(0, 2).map((answer) => (
+                        <div key={`${submission.id}-${answer.fieldId}`} className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">{answer.fieldLabel}</p>
+                          <p className="mt-1 break-words text-[11px] leading-4 text-[var(--foreground)]">{answer.value || "—"}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </Card>
+              ))
+            ) : (
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] px-4 py-5 text-center">
+                <p className="text-sm font-semibold tracking-tight text-[var(--foreground)]">No recent responses</p>
+                <p className="mt-1 text-xs leading-5 text-[var(--muted-foreground)]">Responses will appear as a quick activity snapshot.</p>
+              </div>
+            )}
+          </div>
         </div>
       </Card>
     </div>
@@ -686,7 +718,7 @@ function WorkspaceForms({
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">Forms</p>
           <h2 className="text-2xl font-semibold tracking-tight text-[var(--foreground)]">Forms</h2>
         </div>
-        <Button size="sm" onClick={() => window.location.hash = "#create-form"}>
+        <Button size="sm" type="button" onClick={() => { }}>
           Create Form
         </Button>
       </section>
@@ -774,51 +806,16 @@ function WorkspaceResponses({ data }: { data: DashboardData }) {
   );
 }
 
-function WorkspaceAnalytics({ data }: { data: DashboardData }) {
-  const average = averagePerForm(data.summary.totalSubmissions, data.summary.totalForms);
-  const activeForms = data.forms.filter((form) => form.isPublic).length;
-
-  return (
-    <div className="space-y-6">
-      <SectionHeader
-        eyebrow="Analytics"
-        title="Workspace stats"
-        description="A lightweight analytics view that keeps the dashboard calm while still surfacing useful counts."
-        meta={`${data.summary.totalForms} form${data.summary.totalForms === 1 ? "" : "s"} · ${data.summary.totalSubmissions} submission${data.summary.totalSubmissions === 1 ? "" : "s"}`}
-      />
-
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Total Forms" value={String(data.summary.totalForms)} hint="Workspace forms in one place" />
-        <MetricCard label="Total Responses" value={String(data.summary.totalSubmissions)} hint="Collected across all forms" />
-        <MetricCard label="Active Forms" value={String(activeForms)} hint="Public forms ready to share" />
-        <MetricCard
-          label="Response Rate"
-          value={data.summary.totalForms ? `${average.toFixed(1)}x` : "0x"}
-          hint="Average responses per form"
-        />
-      </div>
-
-      <Card className="border-[var(--border)] bg-[var(--surface)] p-5 shadow-[0_8px_24px_rgba(15,23,42,0.03)]">
-        <div className="space-y-2">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">Snapshot</p>
-          <h3 className="text-xl font-semibold tracking-tight text-[var(--foreground)]">Simple workspace summary</h3>
-          <p className="max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
-            This view stays intentionally light. It exists to make the dashboard feel like a real control panel without changing the data flow.
-          </p>
-        </div>
-      </Card>
-    </div>
-  );
-}
-
 export default function Dashboard({
   data,
   userEmail,
+  settings,
 }: {
   data: DashboardData;
   userEmail?: string | null;
+  settings: SettingsData;
 }) {
-  const [desktopTab, setDesktopTab] = useState<DesktopTab>("overview");
+  const { desktopTab } = useDesktopTab();
   const [mobileTab, setMobileTab] = useState<MobileTab>("home");
   const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
   const source = data as DashboardSource;
@@ -830,10 +827,6 @@ export default function Dashboard({
     userEmail ? userEmail.split("@")[0] : "",
     "Dashboard"
   );
-  const roleLabel = firstText(source.role, source.title, source.position, "Operations workspace");
-  const contextLabel = firstText(source.school, source.schoolName, source.campus, source.institution, "Ready for today’s work");
-  const emailLabel = firstText(userEmail, source.email);
-
   const handleShareForm = (form: DashboardForm) => {
     const origin = window.location.origin;
     setShareTarget({
@@ -851,97 +844,22 @@ export default function Dashboard({
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
       <div className="space-y-3.5 px-4 py-4 pb-18 sm:px-6 sm:py-6 lg:px-8 lg:py-7">
-        <div className="hidden md:block">
-          <Card className="border-[var(--border)] bg-[var(--surface)] p-6 shadow-none">
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-              <div className="max-w-3xl space-y-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="inline-flex rounded-full border border-[rgba(15,93,70,0.16)] bg-[rgba(15,93,70,0.06)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--accent)]">
-                    Dashboard
-                  </span>
-                  {emailLabel ? (
-                    <span className="inline-flex rounded-full border border-[var(--border)] bg-[var(--surface-subtle)] px-3 py-1 text-xs font-medium text-[var(--muted-foreground)]">
-                      {emailLabel}
-                    </span>
-                  ) : null}
-                </div>
-                <h1 className="text-3xl font-semibold tracking-tight text-[var(--foreground)] sm:text-4xl">{displayName}</h1>
-                <p className="text-sm text-[var(--muted-foreground)]">{roleLabel}</p>
-                <p className="max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">{contextLabel}</p>
-              </div>
 
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] text-sm font-semibold text-[var(--foreground)]">
-                {initials(displayName)}
-              </div>
-            </div>
-          </Card>
-        </div>
-
-        <div className="hidden md:flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-2.5 shadow-[0_8px_24px_rgba(15,23,42,0.03)]">
-          <div className="flex flex-wrap gap-2">
-            {DESKTOP_NAV_ITEMS.map((item) => {
-              if (item.tab === "overview") {
-                return (
-                  <a
-                    key={item.label}
-                    href="#overview"
-                    className="inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--surface-subtle)] px-4 py-2 text-sm font-medium text-[var(--foreground)] transition hover:border-[rgba(15,93,70,0.2)] hover:bg-[rgba(15,93,70,0.06)]"
-                  >
-                    {item.label}
-                  </a>
-                );
-              }
-
-              if (item.href) {
-                return (
-                  <Button key={item.label} href={item.href} variant="secondary" size="sm">
-                    {item.label}
-                  </Button>
-                );
-              }
-
-              return (
-                <button
-                  key={item.label}
-                  type="button"
-                  onClick={() => {
-                    if (item.tab && item.tab !== "overview") {
-                      setDesktopTab(item.tab);
-                    }
-                  }}
-                  className="inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--surface-subtle)] px-4 py-2 text-sm font-medium text-[var(--foreground)] transition hover:border-[rgba(15,93,70,0.2)] hover:bg-[rgba(15,93,70,0.06)]"
-                >
-                  {item.label}
-                </button>
-              );
-            })}
+        {desktopTab === "overview" ? (
+          <div id="overview" className="hidden md:block">
+            <WorkspaceOverview data={data} userEmail={userEmail} />
           </div>
-
-          <div className="flex items-center gap-2">
-            <Button href="/settings" variant="secondary" size="sm">
-              Settings
-            </Button>
-            <Button href="#workspace" size="sm">
-              Jump to workspace
-            </Button>
+        ) : (
+          <div id="workspace" className="hidden md:block space-y-3.5">
+            {desktopTab === "forms" ? (
+              <WorkspaceForms data={data} onShareForm={handleShareForm} />
+            ) : desktopTab === "responses" ? (
+              <WorkspaceResponses data={data} />
+            ) : (
+              <WorkspaceSettings settings={settings} />
+            )}
           </div>
-        </div>
-
-        <div id="overview" className="hidden md:block">
-          <WorkspaceOverview data={data} userEmail={userEmail} />
-        </div>
-
-        <div id="workspace" className="hidden md:block space-y-3.5">
-          <DesktopWorkspaceTabs activeTab={desktopTab} onSelectTab={(tab) => setDesktopTab(tab)} />
-
-          {desktopTab === "forms" ? (
-            <WorkspaceForms data={data} onSelectDesktopTab={(tab) => setDesktopTab(tab)} onShareForm={handleShareForm} />
-          ) : desktopTab === "responses" ? (
-            <WorkspaceResponses data={data} />
-          ) : (
-            <WorkspaceAnalytics data={data} />
-          )}
-        </div>
+        )}
 
         <div className="space-y-4 md:hidden">
           {mobileTab === "home" ? (
@@ -951,18 +869,7 @@ export default function Dashboard({
           ) : mobileTab === "responses" ? (
             <MobileResponsesPanel data={data} />
           ) : (
-            <Card className="border-[var(--border)] bg-[var(--surface)] p-5 shadow-none">
-              <div className="space-y-4">
-                <SectionHeader
-                  eyebrow="Settings"
-                  title="Workspace settings"
-                  description="Open the shared settings area for profile and workspace configuration."
-                />
-                <Button href="/settings" className="w-fit">
-                  Open settings
-                </Button>
-              </div>
-            </Card>
+            <MobileSettingsPanel settings={settings} />
           )}
         </div>
       </div>
@@ -981,47 +888,6 @@ export default function Dashboard({
   );
 }
 
-
-function TabPill({
-  label,
-  isActive,
-  onClick,
-}: {
-  label: string;
-  isActive: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={joinClasses(
-        "inline-flex items-center justify-center rounded-full border px-4 py-2 text-sm font-medium transition",
-        isActive
-          ? "border-[rgba(15,93,70,0.24)] bg-[rgba(15,93,70,0.08)] text-[var(--accent)]"
-          : "border-[var(--border)] bg-[var(--surface-subtle)] text-[var(--foreground)] hover:border-[rgba(15,93,70,0.2)] hover:bg-[rgba(15,93,70,0.06)]"
-      )}
-    >
-      {label}
-    </button>
-  );
-}
-
-function DesktopWorkspaceTabs({
-  activeTab,
-  onSelectTab,
-}: {
-  activeTab: DesktopTab;
-  onSelectTab: (tab: DesktopTab) => void;
-}) {
-  return (
-    <div className="flex gap-2 overflow-x-auto pb-1 lg:grid lg:grid-cols-3 lg:overflow-visible">
-      {DESKTOP_TABS.map((tab) => (
-        <TabPill key={tab.id} label={tab.label} isActive={activeTab === tab.id} onClick={() => onSelectTab(tab.id)} />
-      ))}
-    </div>
-  );
-}
 
 function MobileTabBar({
   activeTab,
@@ -1075,17 +941,17 @@ function MobileHomePanel({
 
   return (
     <div className="space-y-4">
-      <div className="space-y-1">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[var(--muted-foreground)]">Overview</p>
-        <h2 className="text-lg font-semibold tracking-tight text-[var(--foreground)]">
-          {greeting}, {userName}
-        </h2>
-        <p className="text-xs leading-5 text-[var(--muted-foreground)]">
-          {data.summary.totalForms
-            ? `${activeForms} active form${activeForms === 1 ? "" : "s"} · ${data.summary.totalSubmissions} responses received`
-            : "Create your first form to get started."}
-        </p>
-      </div>
+      <Card className="border-[var(--border)] bg-[var(--surface)] p-4 shadow-none">
+        <div className="space-y-1.5">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[var(--muted-foreground)]">Overview</p>
+          <h2 className="text-lg font-semibold tracking-tight text-[var(--foreground)]">
+            {greeting}, {userName}
+          </h2>
+          <p className="text-xs leading-5 text-[var(--muted-foreground)]">
+            {data.forms.length === 0 ? "Create your first form to get started." : "You have active forms in your workspace."}
+          </p>
+        </div>
+      </Card>
 
       <div className="grid grid-cols-2 gap-2">
         {[

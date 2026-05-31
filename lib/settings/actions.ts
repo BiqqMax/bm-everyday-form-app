@@ -76,7 +76,6 @@ export async function updateSettingsAction(formData: FormData): Promise<Settings
       };
     }
 
-    revalidatePath("/settings");
     revalidatePath("/dashboard");
 
     return {

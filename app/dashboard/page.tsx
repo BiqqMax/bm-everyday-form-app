@@ -4,6 +4,7 @@ import Dashboard from "../../components/dashboard/Dashboard";
 import { DASHBOARD_ROUTE } from "../../lib/auth/flow";
 import { getPostAuthDestination } from "../../lib/auth/post-auth";
 import { getDashboardData } from "../../lib/dashboard/dashboard";
+import { getSettingsData } from "../../lib/settings/data";
 import { getServerSupabaseClient } from "../../lib/supabase/server";
 import { ProtectedRouteGuard } from "../../components/auth/AuthRouteGuard";
 
@@ -32,11 +33,11 @@ export default async function DashboardPage() {
     redirect(destination);
   }
 
-  const data = await getDashboardData(supabase, user.id);
+  const [data, settings] = await Promise.all([getDashboardData(supabase, user.id), getSettingsData(supabase, user.id)]);
 
   return (
     <ProtectedRouteGuard expectedPath="/dashboard">
-      <Dashboard data={data} userEmail={user.email} />
+      <Dashboard data={data} userEmail={user.email} settings={settings} />
     </ProtectedRouteGuard>
   );
 }
