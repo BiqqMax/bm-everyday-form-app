@@ -1,76 +1,53 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import BrandMark from "../layout/BrandMark";
+import { useActionState, useMemo, useState } from "react";
+
 import Button from "../ui/Button";
 import Card from "../ui/Card";
 import Input from "../ui/Input";
-import LogoutButton from "../auth/LogoutButton";
 import type { DashboardActionState } from "../../lib/dashboard/actions";
 import { createFormAction, deleteFormAction, updateFormAction } from "../../lib/dashboard/actions";
+import { buildPublicFormUrl, getShareStatus, getShareStatusLabel } from "../../lib/forms/public";
 import type { DashboardData, DashboardForm, DashboardSubmission } from "../../lib/dashboard/dashboard";
+import type { SettingsData } from "../../lib/settings/data";
+import ShareModal from "./ShareModal";
+import { useDesktopTab } from "./DesktopTabContext";
+import { MobileSettingsPanel, WorkspaceSettings } from "./SettingsPanels";
 
 type DashboardSource = DashboardData & Record<string, unknown>;
+type MobileTab = "home" | "forms" | "responses" | "settings";
+type FormVisibilityFilter = "all" | "public" | "private";
+type ShareTarget = {
+  form: DashboardForm;
+  shareUrl: string;
+};
 
 const initialActionState: DashboardActionState = {
   status: "idle",
   message: "",
 };
 
-function mergeClasses(...classes: Array<string | undefined | false | null>) {
+const MOBILE_TABS: Array<{ id: MobileTab; label: string }> = [
+  { id: "home", label: "Home" },
+  { id: "forms", label: "Forms" },
+  { id: "responses", label: "Responses" },
+  { id: "settings", label: "Settings" },
+];
+
+function joinClasses(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
-}
-
-function asCollection(value: unknown): Record<string, unknown>[] {
-  if (Array.isArray(value)) {
-    return value.filter(Boolean).map(asRecord);
-  }
-
-  if (value && typeof value === "object") {
-    return Object.values(value as Record<string, unknown>).filter(Boolean).map(asRecord);
-  }
-
-  return [];
 }
 
 function firstText(...values: unknown[]) {
   for (const value of values) {
-    if (typeof value === "string" && value.trim()) {
-      return value.trim();
-    }
-
-    if (typeof value === "number" && Number.isFinite(value)) {
-      return String(value);
-    }
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
   }
-
   return "";
 }
 
-function initials(name: string) {
-  const words = name
-    .split(/\s+/)
-    .map((word) => word.trim())
-    .filter(Boolean);
-
-  if (!words.length) {
-    return "EF";
-  }
-
-  return words
-    .slice(0, 2)
-    .map((word) => word[0]?.toUpperCase() ?? "")
-    .join("");
-}
-
 function formatDateLong(value: string | null) {
-  if (!value) {
-    return "No submissions yet";
-  }
+  if (!value) return "No submissions yet";
 
   return new Intl.DateTimeFormat("en-CA", {
     month: "short",
@@ -79,6 +56,11 @@ function formatDateLong(value: string | null) {
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function averagePerForm(totalSubmissions: number, totalForms: number) {
+  if (!totalForms) return 0;
+  return totalSubmissions / totalForms;
 }
 
 function ActionMessage({ state }: { state: DashboardActionState }) {
@@ -137,39 +119,46 @@ function SectionHeader({
   return (
     <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
       <div className="space-y-2">
-        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--accent)]">{eyebrow}</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">{eyebrow}</p>
         <h2 className="text-2xl font-semibold tracking-tight text-[var(--foreground)]">{title}</h2>
         <p className="max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">{description}</p>
       </div>
-      {meta ? <p className="text-sm text-[var(--muted-foreground)]">{meta}</p> : null}
+      {meta ? <p className="text-sm text-[var(--muted-foreground)] sm:text-right">{meta}</p> : null}
     </div>
   );
 }
 
-function MetricCard({
-  label,
-  value,
-  hint,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-}) {
+
+
+
+function MetricCard({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-none">
-      <div className="inline-flex rounded-full border border-[rgba(15,93,70,0.16)] bg-[rgba(15,93,70,0.06)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
-        {label}
+    <Card className="border-[var(--border)] bg-[var(--surface)] p-4 shadow-[0_8px_24px_rgba(15,23,42,0.03)]">
+      <div className="space-y-2.5">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">{label}</p>
+        <p className="text-[1.65rem] font-semibold tracking-tight text-[var(--foreground)]">{value}</p>
+        <p className="text-sm leading-6 text-[var(--muted-foreground)]">{hint}</p>
       </div>
-      <p className="mt-3 text-3xl font-semibold tracking-tight text-[var(--foreground)]">{value}</p>
-      <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">{hint}</p>
-    </div>
+    </Card>
+  );
+}
+
+function CompactStat({ label, value, hint }: { label: string; value: string; hint: string }) {
+  return (
+    <Card className="border-[var(--border)] bg-[var(--surface)] p-3 shadow-none">
+      <div className="space-y-1.5">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">{label}</p>
+        <p className="text-lg font-semibold tracking-tight text-[var(--foreground)]">{value}</p>
+        <p className="text-xs leading-5 text-[var(--muted-foreground)]">{hint}</p>
+      </div>
+    </Card>
   );
 }
 
 function VisibilityBadge({ isPublic }: { isPublic: boolean }) {
   return (
     <span
-      className={mergeClasses(
+      className={joinClasses(
         "inline-flex rounded-full border px-3 py-1 text-xs font-semibold",
         isPublic
           ? "border-[rgba(15,93,70,0.16)] bg-[rgba(15,93,70,0.06)] text-[var(--accent)]"
@@ -181,46 +170,95 @@ function VisibilityBadge({ isPublic }: { isPublic: boolean }) {
   );
 }
 
-function FormsMobileList({ forms }: { forms: DashboardForm[] }) {
+function SubmissionPreviewCard({ submission }: { submission: DashboardSubmission }) {
   return (
-    <div className="grid gap-3 md:hidden">
+    <Card className="border-[var(--border)] bg-[var(--surface)] p-5 shadow-none">
+      <div className="space-y-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-base font-semibold tracking-tight text-[var(--foreground)]">{submission.formTitle}</p>
+            <p className="mt-1 text-sm text-[var(--muted-foreground)]">{formatDateLong(submission.createdAt)}</p>
+          </div>
+          <span className="inline-flex rounded-full border border-[var(--border)] bg-[var(--surface-subtle)] px-3 py-1 text-xs font-semibold text-[var(--foreground)]">
+            {submission.answers.length} answers
+          </span>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          {submission.answers.length ? (
+            submission.answers.map((answer) => (
+              <div key={`${submission.id}-${answer.fieldId}`} className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">{answer.fieldLabel}</p>
+                <p className="mt-2 break-words text-sm leading-6 text-[var(--foreground)]">{answer.value || "—"}</p>
+              </div>
+            ))
+          ) : (
+            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] p-4 text-sm text-[var(--muted-foreground)]">
+              This submission did not include captured answers.
+            </div>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function SubmissionsList({ submissions }: { submissions: DashboardSubmission[] }) {
+  if (!submissions.length) {
+    return (
+      <EmptyState
+        title="No recent submissions"
+        description="Responses will appear here as learners submit your published forms."
+      />
+    );
+  }
+
+  return <div className="space-y-4">{submissions.map((submission) => <SubmissionPreviewCard key={submission.id} submission={submission} />)}</div>;
+}
+
+function RecentFormsList({ forms }: { forms: DashboardForm[] }) {
+  if (!forms.length) {
+    return (
+      <EmptyState
+        title="No forms yet"
+        description="Create your first form to start collecting responses."
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-3">
       {forms.map((form) => (
-        <Card key={form.id} className="border-[var(--border)] bg-[var(--surface)] p-4 shadow-none">
-          <div className="space-y-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 space-y-1">
+        <Card key={form.id} className="border-[var(--border)] bg-[var(--surface)] p-4 shadow-[0_8px_24px_rgba(15,23,42,0.03)]">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
                 <p className="font-semibold tracking-tight text-[var(--foreground)]">{form.title}</p>
-                <p className="text-sm leading-6 text-[var(--muted-foreground)]">
-                  {form.description || "A focused form ready for your next workflow."}
-                </p>
+                <VisibilityBadge isPublic={form.isPublic} />
               </div>
-              <VisibilityBadge isPublic={form.isPublic} />
+              <p className="text-sm leading-6 text-[var(--muted-foreground)]">
+                {form.description || "A focused form ready for your next workflow."}
+              </p>
             </div>
+          </div>
 
-            <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] px-3 py-2">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">Fields</p>
-                <p className="mt-1 font-semibold text-[var(--foreground)]">{form.fieldCount}</p>
-              </div>
-              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] px-3 py-2">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">Submissions</p>
-                <p className="mt-1 font-semibold text-[var(--foreground)]">{form.submissionCount}</p>
-              </div>
-              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] px-3 py-2">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">Updated</p>
-                <p className="mt-1 text-sm font-medium text-[var(--foreground)]">{formatDateLong(form.updatedAt)}</p>
-              </div>
-              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] px-3 py-2">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">Last</p>
-                <p className="mt-1 text-sm font-medium text-[var(--foreground)]">
-                  {form.lastSubmissionAt ? formatDateLong(form.lastSubmissionAt) : "None"}
-                </p>
-              </div>
+          <div className="mt-4 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] px-3 py-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">Fields</p>
+              <p className="mt-1 font-semibold text-[var(--foreground)]">{form.fieldCount}</p>
             </div>
-
-            <Button href={`#form-${form.id}`} variant="secondary" size="sm" className="w-full">
-              Edit form
-            </Button>
+            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] px-3 py-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">Responses</p>
+              <p className="mt-1 font-semibold text-[var(--foreground)]">{form.submissionCount}</p>
+            </div>
+            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] px-3 py-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">Updated</p>
+              <p className="mt-1 text-sm font-medium text-[var(--foreground)]">{formatDateLong(form.updatedAt)}</p>
+            </div>
+            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] px-3 py-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">Last</p>
+              <p className="mt-1 text-sm font-medium text-[var(--foreground)]">{form.lastSubmissionAt ? formatDateLong(form.lastSubmissionAt) : "None"}</p>
+            </div>
           </div>
         </Card>
       ))}
@@ -228,72 +266,146 @@ function FormsMobileList({ forms }: { forms: DashboardForm[] }) {
   );
 }
 
-function FormsTable({ forms }: { forms: DashboardForm[] }) {
-  if (forms.length === 0) {
+function FormsSearchBar({
+  query,
+  onQueryChange,
+  visibilityFilter,
+  onVisibilityFilterChange,
+}: {
+  query: string;
+  onQueryChange: (value: string) => void;
+  visibilityFilter: FormVisibilityFilter;
+  onVisibilityFilterChange: (value: FormVisibilityFilter) => void;
+}) {
+  return (
+    <Card className="border-[var(--border)] bg-[var(--surface)] px-4 py-3 shadow-none">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0 flex-1">
+          <Input label="Search forms" value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="Search title or description" />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {[
+            { label: "All", value: "all" as const },
+            { label: "Public", value: "public" as const },
+            { label: "Private", value: "private" as const },
+          ].map((item) => {
+            const isActive = visibilityFilter === item.value;
+            return (
+              <button
+                key={item.value}
+                type="button"
+                onClick={() => onVisibilityFilterChange(item.value)}
+                className={joinClasses(
+                  "rounded-full border px-3 py-1.5 text-xs font-semibold tracking-[0.08em] transition",
+                  isActive
+                    ? "border-[rgba(15,93,70,0.24)] bg-[rgba(15,93,70,0.08)] text-[var(--accent)]"
+                    : "border-[var(--border)] bg-[var(--surface-subtle)] text-[var(--foreground)] hover:border-[rgba(15,93,70,0.2)] hover:bg-[rgba(15,93,70,0.06)]"
+                )}
+              >
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function FormsMobileList({ forms, onOpen, onEdit, onShare, onDelete }: { forms: DashboardForm[]; onOpen: (form: DashboardForm) => void; onEdit: (form: DashboardForm) => void; onShare: (form: DashboardForm) => void; onDelete: (form: DashboardForm) => void; }) {
+  return (
+    <div className="grid gap-3 md:hidden">
+      {forms.map((form) => (
+        <Card key={form.id} className="border-[var(--border)] bg-[var(--surface)] p-4 shadow-none">
+          <div className="space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold tracking-tight text-[var(--foreground)]">{form.title}</p>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--muted-foreground)]">
+                  <VisibilityBadge isPublic={form.isPublic} />
+                  <span>{form.submissionCount} responses</span>
+                  <span>{formatDateLong(form.updatedAt)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-2 text-xs text-[var(--muted-foreground)] sm:grid-cols-2">
+              <p className="truncate">{form.description || "No description provided."}</p>
+              <p className="sm:text-right">{form.lastSubmissionAt ? `Last response ${formatDateLong(form.lastSubmissionAt)}` : "No responses yet"}</p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="secondary" size="sm" onClick={() => onOpen(form)}>Open</Button>
+              <Button type="button" variant="secondary" size="sm" onClick={() => onEdit(form)}>Edit</Button>
+              <Button type="button" variant="secondary" size="sm" onClick={() => onShare(form)}>Share</Button>
+              <Button type="button" variant="secondary" size="sm" onClick={() => onDelete(form)}>Delete</Button>
+            </div>
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function FormsTable({ forms, onOpen, onEdit, onShare, onDelete }: { forms: DashboardForm[]; onOpen: (form: DashboardForm) => void; onEdit: (form: DashboardForm) => void; onShare: (form: DashboardForm) => void; onDelete: (form: DashboardForm) => void; }) {
+  if (!forms.length) {
     return (
-      <EmptyState
-        title="No forms yet"
-        description="Your forms will appear here once you create your first form. The overview keeps publish state, submission count, and update time in one calm view."
-        actionHref="#create-form"
-        actionLabel="Create a form"
-      />
+      <Card className="border-[var(--border)] bg-[var(--surface)] p-6 shadow-none">
+        <p className="text-lg font-semibold tracking-tight text-[var(--foreground)]">No forms yet</p>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">Your forms will appear here once you create your first form.</p>
+      </Card>
     );
   }
 
   return (
     <>
       <div className="md:hidden">
-        <FormsMobileList forms={forms} />
+        <FormsMobileList forms={forms} onOpen={onOpen} onEdit={onEdit} onShare={onShare} onDelete={onDelete} />
       </div>
-
       <Card className="hidden overflow-hidden border-[var(--border)] bg-[var(--surface)] shadow-none md:block">
         <div className="border-b border-[var(--border)] px-5 py-4 sm:px-6">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">Forms overview</p>
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">Forms</p>
         </div>
-
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-[var(--border)] text-left">
+          <table className="min-w-full table-fixed divide-y divide-[var(--border)] text-left">
             <thead className="bg-[var(--surface-subtle)]">
-              <tr className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
-                <th className="px-5 py-3 sm:px-6">Form</th>
-                <th className="px-5 py-3">Visibility</th>
-                <th className="px-5 py-3">Fields</th>
-                <th className="px-5 py-3">Submissions</th>
-                <th className="px-5 py-3">Updated</th>
-                <th className="px-5 py-3 text-right">Action</th>
+              <tr className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+                <th className="w-[34%] px-5 py-3 sm:px-6">Form</th>
+                <th className="w-[12%] px-5 py-3">Visibility</th>
+                <th className="w-[12%] px-5 py-3">Responses</th>
+                <th className="w-[22%] px-5 py-3">Updated</th>
+                <th className="w-[20%] px-5 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border)]">
               {forms.map((form) => (
                 <tr key={form.id} className="align-top">
                   <td className="px-5 py-4 sm:px-6">
-                    <div className="space-y-1">
-                      <p className="font-medium text-[var(--foreground)]">{form.title}</p>
-                      <p className="max-w-[32rem] text-sm leading-6 text-[var(--muted-foreground)]">
-                        {form.description || "A focused form ready for your next workflow."}
+                    <div className="min-w-0 space-y-1">
+                      <p className="truncate font-medium text-[var(--foreground)]">{form.title}</p>
+                      <p className="truncate text-sm leading-6 text-[var(--muted-foreground)]">
+                        {form.description || "No description provided."}
                       </p>
+                      <p className="text-xs text-[var(--muted-foreground)]">{form.lastSubmissionAt ? `Last response ${formatDateLong(form.lastSubmissionAt)}` : "No responses yet"}</p>
                     </div>
                   </td>
                   <td className="px-5 py-4">
                     <VisibilityBadge isPublic={form.isPublic} />
                   </td>
-                  <td className="px-5 py-4 text-sm text-[var(--foreground)]">{form.fieldCount}</td>
                   <td className="px-5 py-4">
                     <div className="space-y-1">
-                      <p className="text-sm text-[var(--foreground)]">{form.submissionCount}</p>
-                      <p className="text-xs text-[var(--muted-foreground)]">
-                        {form.lastSubmissionAt ? `Last ${formatDateLong(form.lastSubmissionAt)}` : "No responses yet"}
-                      </p>
+                      <p className="text-sm font-medium text-[var(--foreground)]">{form.submissionCount}</p>
+                      <p className="text-xs text-[var(--muted-foreground)]">responses</p>
                     </div>
                   </td>
                   <td className="px-5 py-4 text-sm text-[var(--muted-foreground)]">{formatDateLong(form.updatedAt)}</td>
-                  <td className="px-5 py-4 text-right">
-                    <a
-                      href={`#form-${form.id}`}
-                      className="inline-flex items-center rounded-full border border-[rgba(15,93,70,0.16)] bg-[rgba(15,93,70,0.06)] px-3 py-2 text-sm font-medium text-[var(--accent)] transition hover:bg-[rgba(15,93,70,0.1)]"
-                    >
-                      Edit
-                    </a>
+                  <td className="px-5 py-4">
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <Button type="button" variant="secondary" size="sm" onClick={() => onOpen(form)}>Open</Button>
+                      <Button type="button" variant="secondary" size="sm" onClick={() => onEdit(form)}>Edit</Button>
+                      <Button type="button" variant="secondary" size="sm" onClick={() => onShare(form)}>Share</Button>
+                      <Button type="button" variant="secondary" size="sm" onClick={() => onDelete(form)}>Delete</Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -309,24 +421,22 @@ function CreateFormCard() {
   const [state, formAction, isPending] = useActionState(createFormAction, initialActionState);
 
   return (
-    <Card className="border-[var(--border)] bg-[var(--surface)] p-6 shadow-none">
-      <div className="space-y-5">
-        <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--accent)]">Studio</p>
-          <h3 className="text-xl font-semibold tracking-tight text-[var(--foreground)]">Create a new form</h3>
-          <p className="text-sm leading-6 text-[var(--muted-foreground)]">
-            Start with a title, add context, and decide whether this form should be published immediately.
-          </p>
+    <Card className="border-[var(--border)] bg-[var(--surface)] p-4 shadow-none">
+      <div className="space-y-4">
+        <div className="space-y-1.5">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--accent)]">Create form</p>
+          <h3 className="text-lg font-semibold tracking-tight text-[var(--foreground)]">New form</h3>
+          <p className="text-sm leading-5 text-[var(--muted-foreground)]">Fast setup for a new form.</p>
         </div>
 
-        <form action={formAction} className="space-y-4">
+        <form action={formAction} className="space-y-3.5">
           <Input name="title" label="Title" placeholder="Field trip permission slip" required />
           <label className="block text-sm">
-            <span className="mb-2 block text-sm font-medium text-[var(--muted-foreground)]">Description</span>
+            <span className="mb-1.5 block text-sm font-medium text-[var(--muted-foreground)]">Description</span>
             <textarea
               name="description"
-              rows={4}
-              className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] px-4 py-3 text-[var(--foreground)] outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-0"
+              rows={3}
+              className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] px-4 py-3 text-[var(--foreground)] outline-none transition-colors placeholder:text-[var(--muted)] focus-visible:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-0"
               placeholder="Add a short note about what this form is for."
             />
           </label>
@@ -338,7 +448,7 @@ function CreateFormCard() {
             />
             Make this form publicly accessible
           </label>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <Button type="submit" disabled={isPending} className="sm:min-w-44">
               {isPending ? "Creating..." : "Create form"}
             </Button>
@@ -350,254 +460,348 @@ function CreateFormCard() {
   );
 }
 
-function EditFormCard({ form }: { form: DashboardForm }) {
+function EditFormCard({
+  form,
+  onShare,
+  onOpen,
+}: {
+  form: DashboardForm;
+  onShare: (form: DashboardForm) => void;
+  onOpen: (form: DashboardForm) => void;
+}) {
   const [state, formAction, isPending] = useActionState(updateFormAction, initialActionState);
   const [deleteState, deleteAction, isDeletePending] = useActionState(deleteFormAction, initialActionState);
 
   return (
-    <Card id={`form-${form.id}`} className="border-[var(--border)] bg-[var(--surface)] p-5 shadow-none">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-        <div className="min-w-0 space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-lg font-semibold tracking-tight text-[var(--foreground)]">{form.title}</p>
-            <VisibilityBadge isPublic={form.isPublic} />
+    <Card id={`form-${form.id}`} className="border-[var(--border)] bg-[var(--surface)] p-4 shadow-none">
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 space-y-1">
+            <p className="truncate text-sm font-semibold tracking-tight text-[var(--foreground)]">{form.title}</p>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--muted-foreground)]">
+              <VisibilityBadge isPublic={form.isPublic} />
+              <span>{form.submissionCount} responses</span>
+              <span>{formatDateLong(form.updatedAt)}</span>
+            </div>
+            <p className="truncate text-sm leading-6 text-[var(--muted-foreground)]">
+              {form.description || "No description provided."}
+            </p>
           </div>
-          <p className="max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
-            {form.description || "No description provided. Add a short context note so the purpose is obvious at a glance."}
-          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" size="sm" onClick={() => onOpen(form)}>Open</Button>
+            <Button type="button" variant="secondary" size="sm" onClick={() => onShare(form)}>Share</Button>
+          </div>
         </div>
 
-        <div className="grid gap-2 sm:grid-cols-3">
-          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] px-4 py-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">Fields</p>
-            <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">{form.fieldCount}</p>
+        <details className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)]">
+          <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-[var(--foreground)]">Edit</summary>
+          <div className="border-t border-[var(--border)] p-4">
+            <form action={formAction} className="space-y-4">
+              <input type="hidden" name="formId" value={form.id} />
+              <Input name="title" label="Title" defaultValue={form.title} required />
+              <label className="block text-sm">
+                <span className="mb-2 block text-sm font-medium text-[var(--muted-foreground)]">Description</span>
+                <textarea
+                  name="description"
+                  rows={4}
+                  defaultValue={form.description ?? ""}
+                  className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] px-4 py-3 text-[var(--foreground)] outline-none transition-colors placeholder:text-[var(--muted)] focus-visible:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-0"
+                />
+              </label>
+              <label className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] px-4 py-3 text-sm text-[var(--foreground)]">
+                <input
+                  type="checkbox"
+                  name="isPublic"
+                  defaultChecked={form.isPublic}
+                  className="h-4 w-4 rounded border-[var(--border)] bg-transparent text-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-0"
+                />
+                Public form
+              </label>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <Button type="submit" disabled={isPending} className="sm:min-w-44">
+                  {isPending ? "Saving..." : "Save changes"}
+                </Button>
+                <ActionMessage state={state} />
+              </div>
+            </form>
+
+            <form
+              action={deleteAction}
+              onSubmit={(event) => {
+                if (!window.confirm(`Delete "${form.title}"? This cannot be undone.`)) {
+                  event.preventDefault();
+                }
+              }}
+              className="mt-4 space-y-3 border-t border-[var(--border)] pt-4"
+            >
+              <input type="hidden" name="formId" value={form.id} />
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <Button type="submit" variant="secondary" disabled={isDeletePending}>
+                  {isDeletePending ? "Deleting..." : "Delete form"}
+                </Button>
+                <ActionMessage state={deleteState} />
+              </div>
+            </form>
           </div>
-          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] px-4 py-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">Created</p>
-            <p className="mt-2 text-sm font-medium text-[var(--foreground)]">{formatDateLong(form.createdAt)}</p>
-          </div>
-          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] px-4 py-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">Last response</p>
-            <p className="mt-2 text-sm font-medium text-[var(--foreground)]">{formatDateLong(form.lastSubmissionAt)}</p>
-          </div>
-        </div>
+        </details>
       </div>
-
-      <details className="mt-5 rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)]">
-        <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-[var(--foreground)]">
-          Edit form details
-        </summary>
-        <div className="border-t border-[var(--border)] p-4">
-          <form action={formAction} className="space-y-4">
-            <input type="hidden" name="formId" value={form.id} />
-            <Input name="title" label="Title" defaultValue={form.title} required />
-            <label className="block text-sm">
-              <span className="mb-2 block text-sm font-medium text-[var(--muted-foreground)]">Description</span>
-            <textarea
-              name="description"
-              rows={4}
-              defaultValue={form.description ?? ""}
-              className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] px-4 py-3 text-[var(--foreground)] outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-0"
-            />
-            </label>
-            <label className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] px-4 py-3 text-sm text-[var(--foreground)]">
-            <input
-              type="checkbox"
-              name="isPublic"
-              defaultChecked={form.isPublic}
-              className="h-4 w-4 rounded border-[var(--border)] bg-transparent text-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-0"
-            />
-              Public form
-            </label>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <Button type="submit" disabled={isPending} className="sm:min-w-44">
-                {isPending ? "Saving..." : "Save changes"}
-              </Button>
-              <ActionMessage state={state} />
-            </div>
-          </form>
-
-          <form
-            action={deleteAction}
-            onSubmit={(event) => {
-              if (!window.confirm(`Delete "${form.title}"? This cannot be undone.`)) {
-                event.preventDefault();
-              }
-            }}
-            className="mt-4 space-y-3 border-t border-[var(--border)] pt-4"
-          >
-            <input type="hidden" name="formId" value={form.id} />
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <Button type="submit" variant="secondary" disabled={isDeletePending}>
-                {isDeletePending ? "Deleting..." : "Delete form"}
-              </Button>
-              <ActionMessage state={deleteState} />
-            </div>
-          </form>
-        </div>
-      </details>
     </Card>
   );
 }
 
-function SubmissionsList({ submissions }: { submissions: DashboardSubmission[] }) {
-  if (submissions.length === 0) {
-    return (
-      <EmptyState
-        title="No recent submissions"
-        description="Responses will appear here as learners submit your published forms. The latest six are surfaced first to keep the review flow calm and current."
-      />
-    );
-  }
+function WorkspaceOverview({
+  data,
+  userEmail,
+}: {
+  data: DashboardData;
+  userEmail?: string | null;
+}) {
+  const { setDesktopTab } = useDesktopTab();
+  const source = data as DashboardSource;
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good Morning" : hour < 18 ? "Good Afternoon" : "Good Evening";
+  const displayName = firstText(source.name, source.fullName, userEmail ? userEmail.split("@")[0] : "", "User");
+  const activeForms = data.forms.filter((form) => form.isPublic).length;
+  const recentResponses = data.recentSubmissions.slice(0, 2);
 
   return (
     <div className="space-y-4">
-      {submissions.map((submission) => (
-        <Card key={submission.id} className="border-[var(--border)] bg-[var(--surface)] p-5 shadow-none">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <p className="text-base font-semibold tracking-tight text-[var(--foreground)]">{submission.formTitle}</p>
-              <p className="mt-1 text-sm text-[var(--muted-foreground)]">{formatDateLong(submission.createdAt)}</p>
-            </div>
-            <span className="inline-flex rounded-full border border-[var(--border)] bg-[var(--surface-subtle)] px-3 py-1 text-xs font-semibold text-[var(--foreground)]">
-              {submission.answers.length} answers
-            </span>
-          </div>
+      <Card className="border-[var(--border)] bg-[var(--surface)] p-4 shadow-none">
+        <div className="space-y-1.5">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[var(--muted-foreground)]">Overview</p>
+          <h2 className="text-lg font-semibold tracking-tight text-[var(--foreground)]">
+            {greeting}, {displayName}
+          </h2>
+          <p className="text-xs leading-5 text-[var(--muted-foreground)]">
+            {data.forms.length === 0 ? "Create your first form to get started." : "You have active forms in your workspace."}
+          </p>
+        </div>
+      </Card>
 
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-              {submission.answers.length ? (
-              submission.answers.map((answer: DashboardSubmission["answers"][number]) => (
-                <div key={`${submission.id}-${answer.fieldId}`} className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] p-4">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">{answer.fieldLabel}</p>
-                  <p className="mt-2 break-words text-sm leading-6 text-[var(--foreground)]">{answer.value || "—"}</p>
-                </div>
+      <div className="grid grid-cols-2 gap-2">
+        {[
+          {
+            label: "Forms",
+            value: String(data.summary.totalForms),
+            hint: "Workspace total",
+          },
+          {
+            label: "Responses",
+            value: String(data.summary.totalSubmissions),
+            hint: "Collected so far",
+          },
+          {
+            label: "Active",
+            value: String(activeForms),
+            hint: "Ready to share",
+          },
+          {
+            label: "Rate",
+            value: data.summary.totalForms ? `${averagePerForm(data.summary.totalSubmissions, data.summary.totalForms).toFixed(1)}x` : "0x",
+            hint: "Per form",
+          },
+        ].map((stat) => (
+          <Card key={stat.label} className="border-[var(--border)] bg-[var(--surface)] px-3 py-3 shadow-none">
+            <div className="space-y-1">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">{stat.label}</p>
+              <p className="text-[1.05rem] font-semibold tracking-tight text-[var(--foreground)]">{stat.value}</p>
+              <p className="text-[11px] leading-4 text-[var(--muted-foreground)]">{stat.hint}</p>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      <Card className="border-[var(--border)] bg-[var(--surface)] p-3 shadow-none">
+        <div className="inline-flex flex-wrap items-center gap-2">
+          <Button onClick={() => setDesktopTab("forms")} className="w-fit px-4">
+            Create Form
+          </Button>
+          <Button variant="secondary" size="sm" className="w-fit px-4" onClick={() => setDesktopTab("forms")}>
+            View Forms
+          </Button>
+        </div>
+      </Card>
+
+      <Card className="border-[var(--border)] bg-[var(--surface)] p-3 shadow-none">
+        <div className="space-y-3">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--muted-foreground)]">Recent responses</p>
+
+          <div className="space-y-2">
+            {recentResponses.length ? (
+              recentResponses.map((submission) => (
+                <Card key={submission.id} className="border-[var(--border)] bg-[var(--surface-subtle)] p-3 shadow-none">
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 space-y-1">
+                        <p className="truncate text-sm font-semibold tracking-tight text-[var(--foreground)]">{submission.formTitle}</p>
+                        <p className="text-[11px] leading-4 text-[var(--muted-foreground)]">{formatDateLong(submission.createdAt)}</p>
+                      </div>
+                      <p className="shrink-0 text-[11px] font-medium text-[var(--muted-foreground)]">
+                        {submission.answers.length} answer{submission.answers.length === 1 ? "" : "s"}
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      {submission.answers.slice(0, 2).map((answer) => (
+                        <div key={`${submission.id}-${answer.fieldId}`} className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">{answer.fieldLabel}</p>
+                          <p className="mt-1 break-words text-[11px] leading-4 text-[var(--foreground)]">{answer.value || "—"}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </Card>
               ))
             ) : (
-              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] p-4 text-sm text-[var(--muted-foreground)]">
-                This submission did not include captured answers.
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] px-4 py-5 text-center">
+                <p className="text-sm font-semibold tracking-tight text-[var(--foreground)]">No recent responses</p>
+                <p className="mt-1 text-xs leading-5 text-[var(--muted-foreground)]">Responses will appear as a quick activity snapshot.</p>
               </div>
             )}
           </div>
-        </Card>
-      ))}
+        </div>
+      </Card>
     </div>
   );
 }
 
-function WorkspacePanel({ data, userEmail }: { data: DashboardSource; userEmail?: string | null }) {
-  const summary = asRecord(data.summary);
-  const focus = firstText(
-    data.focus,
-    data.todayFocus,
-    summary.focus,
-    "Review the forms, update one workflow, and check the latest responses before the next block."
-  );
-  const checkIn = firstText(
-    data.nextCheckIn,
-    data.checkIn,
-    summary.checkIn,
-    "Use the navigation to jump from forms to activity without losing context."
-  );
-  const status = firstText(
-    data.status,
-    data.workspaceStatus,
-    summary.status,
-    "Calm, secure, and ready for the day."
-  );
 
-  const schedule = asCollection(data.schedule ?? data.upcoming ?? data.calendar ?? data.agenda);
+function WorkspaceForms({
+  data,
+  onShareForm,
+}: {
+  data: DashboardData;
+  onShareForm: (form: DashboardForm) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [visibilityFilter, setVisibilityFilter] = useState<FormVisibilityFilter>("all");
+
+  const filteredForms = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    return data.forms.filter((form) => {
+      const matchesQuery =
+        !normalizedQuery ||
+        form.title.toLowerCase().includes(normalizedQuery) ||
+        (form.description ?? "").toLowerCase().includes(normalizedQuery);
+
+      const matchesVisibility =
+        visibilityFilter === "all" ||
+        (visibilityFilter === "public" && form.isPublic) ||
+        (visibilityFilter === "private" && !form.isPublic);
+
+      return matchesQuery && matchesVisibility;
+    });
+  }, [data.forms, query, visibilityFilter]);
+
+  const visibleCount = filteredForms.length;
+  const totalCount = data.forms.length;
+
+  const handleOpenForm = (form: DashboardForm) => {
+    window.location.hash = `form-${form.id}`;
+  };
+
+  const handleEditForm = (form: DashboardForm) => {
+    window.location.hash = `form-${form.id}`;
+  };
+
+  const handleDeleteForm = (form: DashboardForm) => {
+    const confirmDelete = window.confirm(`Delete "${form.title}"? This cannot be undone.`);
+    if (!confirmDelete) return;
+    window.location.hash = `form-${form.id}`;
+  };
 
   return (
-    <div id="workspace" className="space-y-6">
-      <Card className="border-[var(--border)] bg-[var(--surface)] p-6 shadow-none">
-        <div className="space-y-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--accent)]">Workspace</p>
-          <div className="space-y-2">
-            <h3 className="text-xl font-semibold tracking-tight text-[var(--foreground)]">A quiet place to manage today’s flow</h3>
-            <p className="text-sm leading-6 text-[var(--muted-foreground)]">
-              {userEmail ? `Signed in as ${userEmail}. ` : ""}
-              The dashboard keeps the most important work close: forms, live responses, and a few focused actions.
-            </p>
-          </div>
+    <div className="space-y-4">
+      <section className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">Forms</p>
+          <h2 className="text-2xl font-semibold tracking-tight text-[var(--foreground)]">Forms</h2>
+        </div>
+        <Button size="sm" type="button" onClick={() => { }}>
+          Create Form
+        </Button>
+      </section>
 
-          <div className="grid gap-3">
-            {[
-              { title: "Today’s focus", body: focus },
-              { title: "Next check-in", body: checkIn },
-              { title: "Workspace status", body: status },
-            ].map((item) => (
-              <div key={item.title} className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] p-4">
-                <p className="text-sm font-semibold text-[var(--foreground)]">{item.title}</p>
-                <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">{item.body}</p>
-              </div>
-            ))}
-          </div>
+      <FormsSearchBar
+        query={query}
+        onQueryChange={setQuery}
+        visibilityFilter={visibilityFilter}
+        onVisibilityFilterChange={setVisibilityFilter}
+      />
+
+      <Card className="border-[var(--border)] bg-[var(--surface)] px-4 py-3 shadow-none">
+        <div className="flex items-center justify-between gap-3 text-sm text-[var(--muted-foreground)]">
+          <p>
+            Showing {visibleCount} of {totalCount} form{totalCount === 1 ? "" : "s"}
+          </p>
+          <p>Compact management view</p>
         </div>
       </Card>
 
-      <Card className="border-[var(--border)] bg-[var(--surface)] p-6 shadow-none">
-        <div className="space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--accent)]">Upcoming</p>
-          <div className="space-y-2">
-            <h3 className="text-lg font-semibold tracking-tight text-[var(--foreground)]">Schedule</h3>
-            <p className="text-sm leading-6 text-[var(--muted-foreground)]">
-              A small snapshot of what’s next, kept intentionally lightweight.
-            </p>
-          </div>
-          {schedule.length ? (
-            <div className="space-y-3">
-              {schedule.slice(0, 4).map((item, index) => {
-                const title = firstText(item.title, item.name, item.label, `Item ${index + 1}`);
-                const detail = firstText(item.time, item.date, item.startsAt, item.body, item.description, "Scheduled soon");
-                return (
-                  <div key={`${title}-${index}`} className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] p-4">
-                    <p className="text-sm font-medium text-[var(--foreground)]">{title}</p>
-                    <p className="mt-1 text-sm text-[var(--muted-foreground)]">{detail}</p>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <EmptyState
-              title="Nothing scheduled"
-              description="When a timetable or check-in list is available, it will show here. For now the workspace stays uncluttered."
-            />
-          )}
+      <FormsTable
+        forms={filteredForms}
+        onOpen={handleOpenForm}
+        onEdit={handleEditForm}
+        onShare={onShareForm}
+        onDelete={handleDeleteForm}
+      />
+
+      {filteredForms.length ? (
+        <div className="grid gap-4">
+          {filteredForms.map((form) => (
+            <EditFormCard key={form.id} form={form} onShare={onShareForm} onOpen={handleOpenForm} />
+          ))}
         </div>
-      </Card>
+      ) : (
+        <EmptyState title="No matching forms" description="Try another search term or clear the visibility filter." />
+      )}
     </div>
   );
 }
 
-function SummaryCard({ data }: { data: DashboardData }) {
+function WorkspaceResponses({ data }: { data: DashboardData }) {
   const metrics = [
-    {
-      label: "Forms",
-      value: String(data.summary.totalForms),
-      hint: data.summary.totalForms ? "Owned forms in your workspace" : "No forms created yet",
-    },
-    {
-      label: "Published",
-      value: String(data.summary.publishedForms),
-      hint: data.summary.publishedForms ? "Forms currently public" : "Nothing published yet",
-    },
-    {
-      label: "Submissions",
-      value: String(data.summary.totalSubmissions),
-      hint: data.summary.totalSubmissions ? "Responses collected so far" : "Waiting on first response",
-    },
-    {
-      label: "Fields",
-      value: String(data.summary.totalFields),
-      hint: data.summary.totalFields ? "Questions across all forms" : "No form fields yet",
-    },
+    { label: "Total Responses", value: String(data.summary.totalSubmissions), hint: "All collected submissions" },
+    { label: "Recent Responses", value: String(data.summary.recentSubmissions), hint: "Latest response window" },
+    { label: "Average per Form", value: data.summary.totalForms ? averagePerForm(data.summary.totalSubmissions, data.summary.totalForms).toFixed(1) : "0", hint: "Responses divided by forms" },
   ];
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      {metrics.map((metric) => (
-        <MetricCard key={metric.label} label={metric.label} value={metric.value} hint={metric.hint} />
-      ))}
+    <div className="space-y-5">
+      <SectionHeader
+        eyebrow="Responses"
+        title="Recent activity"
+        description="A focused response feed surfaces the latest submissions and keeps the review flow calm."
+        meta={data.recentSubmissions.length ? `${data.recentSubmissions.length} latest submission${data.recentSubmissions.length === 1 ? "" : "s"}` : "No activity yet"}
+      />
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        {metrics.map((metric) => (
+          <MetricCard key={metric.label} label={metric.label} value={metric.value} hint={metric.hint} />
+        ))}
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,0.95fr)]">
+        <Card className="border-[var(--border)] bg-[var(--surface)] p-5 shadow-none">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">Activity feed</p>
+          <div className="mt-4">
+            <SubmissionsList submissions={data.recentSubmissions} />
+          </div>
+        </Card>
+
+        <div className="space-y-4">
+          <SectionHeader eyebrow="Preview" title="Response preview" description="A compact glance at the latest submission." />
+          {data.recentSubmissions[0] ? (
+            <SubmissionPreviewCard submission={data.recentSubmissions[0]} />
+          ) : (
+            <EmptyState
+              title="Nothing to preview yet"
+              description="When a new response comes in, it will show up here with answer values grouped for quick scanning."
+            />
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -605,14 +809,17 @@ function SummaryCard({ data }: { data: DashboardData }) {
 export default function Dashboard({
   data,
   userEmail,
+  settings,
 }: {
   data: DashboardData;
   userEmail?: string | null;
+  settings: SettingsData;
 }) {
-  const [state, action, isPending] = useActionState(createFormAction, initialActionState);
-  const [deleteState, deleteAction, isDeletePending] = useActionState(deleteFormAction, initialActionState);
-  const [updateState, updateAction, isUpdatePending] = useActionState(updateFormAction, initialActionState);
+  const { desktopTab } = useDesktopTab();
+  const [mobileTab, setMobileTab] = useState<MobileTab>("home");
+  const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
   const source = data as DashboardSource;
+
   const displayName = firstText(
     source.displayName,
     source.name,
@@ -620,181 +827,326 @@ export default function Dashboard({
     userEmail ? userEmail.split("@")[0] : "",
     "Dashboard"
   );
-  const roleLabel = firstText(source.role, source.title, source.position, "Operations workspace");
-  const contextLabel = firstText(source.school, source.schoolName, source.campus, source.institution, "Ready for today’s work");
-  const emailLabel = firstText(userEmail, source.email);
+  const handleShareForm = (form: DashboardForm) => {
+    const origin = window.location.origin;
+    setShareTarget({
+      form,
+      shareUrl: buildPublicFormUrl(origin, displayName, form.publicToken),
+    });
+  };
+
+  const activeShareStatus = shareTarget ? getShareStatus(shareTarget.form) : null;
+
+  const handleMobileTabChange = (tab: MobileTab) => {
+    setMobileTab(tab);
+  };
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
-      <div className="mx-auto grid w-full max-w-[1640px] gap-6 px-4 py-4 lg:grid-cols-[280px_minmax(0,1fr)] lg:px-6 xl:px-8">
-        <aside className="lg:sticky lg:top-6 lg:h-[calc(100vh-3rem)] lg:self-start">
-          <Card className="flex h-full flex-col gap-6 border-[var(--border)] bg-[var(--surface)] p-5 shadow-none">
-            <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface-subtle)] p-5">
-              <div className="flex items-start justify-between gap-4">
-                <div className="space-y-4">
-                  <BrandMark href="/" />
-                  <div className="space-y-1">
-                    <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--accent)]">Dashboard</p>
-                    <h1 className="text-2xl font-semibold tracking-tight text-[var(--foreground)]">{displayName}</h1>
-                    <p className="text-sm text-[var(--muted-foreground)]">{roleLabel}</p>
-                  </div>
-                </div>
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-sm font-semibold text-[var(--foreground)]">
-                  {initials(displayName)}
-                </div>
-              </div>
+      <div className="space-y-3.5 px-4 py-4 pb-18 sm:px-6 sm:py-6 lg:px-8 lg:py-7">
 
-              <div className="mt-4 space-y-1 text-sm text-[var(--muted-foreground)]">
-                <p>{contextLabel}</p>
-                {emailLabel ? <p>{emailLabel}</p> : null}
-              </div>
-            </div>
-
-            <nav aria-label="Dashboard sections" className="grid gap-2">
-              {[
-                ["Overview", "#overview"],
-                ["Forms", "#forms"],
-                ["Create", "#create-form"],
-                ["Studio", "#studio"],
-                ["Activity", "#activity"],
-                ["Workspace", "#workspace"],
-              ].map(([label, href], index) => (
-                <a
-                  key={label}
-                  href={href}
-                  className="group flex items-center justify-between rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] px-4 py-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[rgba(15,93,70,0.2)] hover:bg-[rgba(15,93,70,0.06)]"
-                >
-                  <span className="flex items-center gap-3">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[11px] font-semibold text-[var(--muted-foreground)]">
-                      {String(index + 1).padStart(2, "0")}
-                    </span>
-                    {label}
-                  </span>
-                  <span className="text-[var(--muted-foreground)] transition group-hover:translate-x-0.5 group-hover:text-[var(--accent)]">→</span>
-                </a>
-              ))}
-            </nav>
-
-            <div className="grid gap-4">
-              <Card className="border-[var(--border)] bg-[var(--surface-subtle)] p-4 shadow-none">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--muted-foreground)]">Summary</p>
-                <div className="mt-4 space-y-3">
-                  <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">Forms</p>
-                    <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">{data.summary.totalForms}</p>
-                  </div>
-                  <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">Submissions</p>
-                    <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">{data.summary.totalSubmissions}</p>
-                  </div>
-                </div>
-              </Card>
-
-              <Card className="border-[var(--border)] bg-[var(--surface-subtle)] p-4 shadow-none">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--muted-foreground)]">Session</p>
-                <div className="mt-3 flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-medium text-[var(--foreground)]">Secure Supabase session</p>
-                    <p className="text-sm text-[var(--muted-foreground)]">Synced through server cookies</p>
-                  </div>
-                  <LogoutButton />
-                </div>
-              </Card>
-            </div>
-          </Card>
-        </aside>
-
-        <main className="space-y-6 pb-6">
-          <Card id="overview" className="border-[var(--border)] bg-[var(--surface)] p-6 shadow-none">
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-              <div className="max-w-3xl space-y-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="inline-flex rounded-full border border-[rgba(15,93,70,0.16)] bg-[rgba(15,93,70,0.06)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--accent)]">
-                    Workspace
-                  </span>
-                  {userEmail ? (
-                    <span className="inline-flex rounded-full border border-[var(--border)] bg-[var(--surface-subtle)] px-3 py-1 text-xs font-medium text-[var(--muted-foreground)]">
-                      {userEmail}
-                    </span>
-                  ) : null}
-                </div>
-                <h2 className="text-3xl font-semibold tracking-tight text-[var(--foreground)] sm:text-4xl">
-                  Calm, structured tools for a full workday.
-                </h2>
-                <p className="max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
-                  Review forms, track responses, and move between planning and follow-up without clutter. The layout is denser,
-                  clearer, and tuned for desktop, tablet, and mobile.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-3">
-                <Button href="/" variant="secondary" size="sm">
-                  Home
-                </Button>
-                <Button href="#create-form" size="sm">
-                  Create form
-                </Button>
-              </div>
-            </div>
-
-            <div className="mt-6">
-              <SummaryCard data={data} />
-            </div>
-          </Card>
-
-          <section id="forms" className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(360px,0.9fr)]">
-            <div className="space-y-4">
-              <SectionHeader
-                eyebrow="Forms"
-                title="Roster and response overview"
-                description="The table keeps key form metadata visible at a glance: publish state, field count, response count, and the latest update."
-                meta={data.forms.length ? `${data.forms.length} form${data.forms.length === 1 ? "" : "s"} in view` : "No forms yet"}
-              />
-              <FormsTable forms={data.forms} />
-            </div>
-
-            <div className="space-y-6">
-              <div id="create-form">
-                <CreateFormCard />
-              </div>
-              <WorkspacePanel data={source} userEmail={userEmail} />
-            </div>
-          </section>
-
-          <section id="studio" className="space-y-4">
-            <SectionHeader
-              eyebrow="Studio"
-              title="Edit forms with less friction"
-              description="Each form card is compact by default, then expands into a focused editing surface with safer delete affordances and clearer hierarchy."
-              meta={data.forms.length ? "Expand a card to edit" : "Create one to unlock the studio"}
-            />
-
-            {data.forms.length ? (
-              <div className="grid gap-4">
-            {data.forms.map((form: DashboardForm) => (
-              <EditFormCard key={form.id} form={form} />
-            ))}
-              </div>
+        {desktopTab === "overview" ? (
+          <div id="overview" className="hidden md:block">
+            <WorkspaceOverview data={data} userEmail={userEmail} />
+          </div>
+        ) : (
+          <div id="workspace" className="hidden md:block space-y-3.5">
+            {desktopTab === "forms" ? (
+              <WorkspaceForms data={data} onShareForm={handleShareForm} />
+            ) : desktopTab === "responses" ? (
+              <WorkspaceResponses data={data} />
             ) : (
-              <EmptyState
-                title="No forms to edit yet"
-                description="Create your first form in the studio and this area becomes the editing workspace, with changes, visibility, and deletion controls neatly contained."
-                actionHref="#create-form"
-                actionLabel="Create a form"
-              />
+              <WorkspaceSettings settings={settings} />
             )}
-          </section>
+          </div>
+        )}
 
-          <section id="activity" className="space-y-4">
-            <SectionHeader
-              eyebrow="Activity"
-              title="Latest responses"
-              description="Recent submissions are presented as readable cards so you can scan answers quickly without opening another page."
-              meta={data.recentSubmissions.length ? `${data.recentSubmissions.length} recent submission${data.recentSubmissions.length === 1 ? "" : "s"}` : "No activity yet"}
-            />
+        <div className="space-y-4 md:hidden">
+          {mobileTab === "home" ? (
+            <MobileHomePanel data={data} displayName={displayName} onTabChange={handleMobileTabChange} />
+          ) : mobileTab === "forms" ? (
+            <MobileFormsPanel data={data} onShareForm={handleShareForm} onTabChange={handleMobileTabChange} />
+          ) : mobileTab === "responses" ? (
+            <MobileResponsesPanel data={data} />
+          ) : (
+            <MobileSettingsPanel settings={settings} />
+          )}
+        </div>
+      </div>
+
+      <MobileTabBar activeTab={mobileTab} onTabChange={handleMobileTabChange} />
+
+      <ShareModal
+        open={Boolean(shareTarget)}
+        onClose={() => setShareTarget(null)}
+        formTitle={shareTarget?.form.title ?? ""}
+        shareUrl={shareTarget?.shareUrl ?? ""}
+        statusLabel={activeShareStatus ? getShareStatusLabel(activeShareStatus) : undefined}
+        published={shareTarget?.form.isPublic ?? true}
+      />
+    </div>
+  );
+}
+
+
+function MobileTabBar({
+  activeTab,
+  onTabChange,
+}: {
+  activeTab: MobileTab;
+  onTabChange: (tab: MobileTab) => void;
+}) {
+  return (
+    <nav
+      aria-label="Mobile dashboard navigation"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--border)] bg-[var(--surface)]/96 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-12px_40px_rgba(0,0,0,0.08)] backdrop-blur md:hidden"
+    >
+      <div className="mx-auto grid max-w-3xl grid-cols-4 gap-2">
+        {MOBILE_TABS.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => onTabChange(item.id)}
+            aria-current={activeTab === item.id ? "page" : undefined}
+            className={joinClasses(
+              "inline-flex items-center justify-center rounded-3xl border px-3 py-3 text-sm font-medium transition",
+              activeTab === item.id
+                ? "border-[rgba(15,93,70,0.22)] bg-[rgba(15,93,70,0.08)] text-[var(--accent)]"
+                : "border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] hover:border-[rgba(15,93,70,0.18)] hover:bg-[var(--surface-subtle)]"
+            )}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
+function MobileHomePanel({
+  data,
+  displayName,
+  onTabChange,
+}: {
+  data: DashboardData;
+  displayName: string;
+  onTabChange: (tab: MobileTab) => void;
+}) {
+  const source = data as DashboardSource;
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good Morning" : hour < 18 ? "Good Afternoon" : "Good Evening";
+  const userName = displayName !== "Dashboard" ? displayName : firstText(source.name, source.fullName, "User");
+  const activeForms = data.forms.filter((form) => form.isPublic).length;
+  const recentResponses = data.recentSubmissions.slice(0, 2);
+
+  return (
+    <div className="space-y-4">
+      <Card className="border-[var(--border)] bg-[var(--surface)] p-4 shadow-none">
+        <div className="space-y-1.5">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[var(--muted-foreground)]">Overview</p>
+          <h2 className="text-lg font-semibold tracking-tight text-[var(--foreground)]">
+            {greeting}, {userName}
+          </h2>
+          <p className="text-xs leading-5 text-[var(--muted-foreground)]">
+            {data.forms.length === 0 ? "Create your first form to get started." : "You have active forms in your workspace."}
+          </p>
+        </div>
+      </Card>
+
+      <div className="grid grid-cols-2 gap-2">
+        {[
+          {
+            label: "Forms",
+            value: String(data.summary.totalForms),
+            hint: "Workspace total",
+          },
+          {
+            label: "Responses",
+            value: String(data.summary.totalSubmissions),
+            hint: "Collected so far",
+          },
+          {
+            label: "Active",
+            value: String(data.forms.filter((form) => form.isPublic).length),
+            hint: "Ready to share",
+          },
+          {
+            label: "Rate",
+            value: data.summary.totalForms ? `${averagePerForm(data.summary.totalSubmissions, data.summary.totalForms).toFixed(1)}x` : "0x",
+            hint: "Per form",
+          },
+        ].map((stat) => (
+          <Card key={stat.label} className="border-[var(--border)] bg-[var(--surface)] px-3 py-3 shadow-none">
+            <div className="space-y-1">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">{stat.label}</p>
+              <p className="text-[1.05rem] font-semibold tracking-tight text-[var(--foreground)]">{stat.value}</p>
+              <p className="text-[11px] leading-4 text-[var(--muted-foreground)]">{stat.hint}</p>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      <Card className="border-[var(--border)] bg-[var(--surface)] p-3 shadow-none">
+        <div className="grid grid-cols-2 gap-2">
+          <Button onClick={() => onTabChange("forms")} className="w-full justify-center">
+            Create Form
+          </Button>
+          <Button variant="secondary" size="sm" className="w-full justify-center" onClick={() => onTabChange("forms")}>
+            View Forms
+          </Button>
+        </div>
+      </Card>
+
+      <Card className="border-[var(--border)] bg-[var(--surface)] p-3 shadow-none">
+        <div className="space-y-3">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--muted-foreground)]">Recent responses</p>
+
+          <div className="space-y-2">
+            {recentResponses.length ? (
+              recentResponses.map((submission) => (
+                <Card key={submission.id} className="border-[var(--border)] bg-[var(--surface-subtle)] p-3 shadow-none">
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 space-y-1">
+                        <p className="truncate text-sm font-semibold tracking-tight text-[var(--foreground)]">{submission.formTitle}</p>
+                        <p className="text-[11px] leading-4 text-[var(--muted-foreground)]">{formatDateLong(submission.createdAt)}</p>
+                      </div>
+                      <p className="shrink-0 text-[11px] font-medium text-[var(--muted-foreground)]">
+                        {submission.answers.length} answer{submission.answers.length === 1 ? "" : "s"}
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      {submission.answers.slice(0, 2).map((answer) => (
+                        <div key={`${submission.id}-${answer.fieldId}`} className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">{answer.fieldLabel}</p>
+                          <p className="mt-1 break-words text-[11px] leading-4 text-[var(--foreground)]">{answer.value || "—"}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </Card>
+              ))
+            ) : (
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] px-4 py-5 text-center">
+                <p className="text-sm font-semibold tracking-tight text-[var(--foreground)]">No recent responses</p>
+                <p className="mt-1 text-xs leading-5 text-[var(--muted-foreground)]">Responses will appear here as a quick activity snapshot.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function MobileFormsPanel({
+  data,
+  onShareForm,
+  onTabChange,
+}: {
+  data: DashboardData;
+  onShareForm: (form: DashboardForm) => void;
+  onTabChange: (tab: MobileTab) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [visibilityFilter, setVisibilityFilter] = useState<FormVisibilityFilter>("all");
+
+  const filteredForms = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    return data.forms.filter((form) => {
+      const matchesQuery =
+        !normalizedQuery ||
+        form.title.toLowerCase().includes(normalizedQuery) ||
+        (form.description ?? "").toLowerCase().includes(normalizedQuery);
+
+      const matchesVisibility =
+        visibilityFilter === "all" ||
+        (visibilityFilter === "public" && form.isPublic) ||
+        (visibilityFilter === "private" && !form.isPublic);
+
+      return matchesQuery && matchesVisibility;
+    });
+  }, [data.forms, query, visibilityFilter]);
+
+  return (
+    <div className="space-y-6">
+      <SectionHeader
+        eyebrow="Forms"
+        title="Manage forms"
+        description="Search, filter, and edit forms from a mobile-first list."
+        meta={data.forms.length ? `${filteredForms.length} visible of ${data.forms.length} total` : "No forms yet"}
+      />
+
+      <FormsSearchBar
+        query={query}
+        onQueryChange={setQuery}
+        visibilityFilter={visibilityFilter}
+        onVisibilityFilterChange={setVisibilityFilter}
+        filteredCount={filteredForms.length}
+        totalCount={data.forms.length}
+      />
+
+      <CreateFormCard />
+
+      <FormsTable forms={filteredForms} />
+
+      {filteredForms.length ? (
+        <section className="space-y-4">
+          <SectionHeader eyebrow="Editor" title="Edit forms" description="Expand cards to update form details or share links." />
+          <div className="grid gap-4">
+            {filteredForms.map((form) => (
+              <EditFormCard key={form.id} form={form} onShare={onShareForm} />
+            ))}
+          </div>
+        </section>
+      ) : (
+        <EmptyState title="No matching forms" description="Try another search term or clear the visibility filter." />
+      )}
+    </div>
+  );
+}
+
+function MobileResponsesPanel({ data }: { data: DashboardData }) {
+  const average = averagePerForm(data.summary.totalSubmissions, data.summary.totalForms);
+
+  return (
+    <div className="space-y-6">
+      <SectionHeader
+        eyebrow="Responses"
+        title="Latest responses"
+        description="Recent submissions are summarized in a focused response feed that keeps the review flow calm."
+      />
+      <div className="grid gap-3 sm:grid-cols-3">
+        <CompactStat label="Total Responses" value={String(data.summary.totalSubmissions)} hint="All collected submissions" />
+        <CompactStat label="Recent Responses" value={String(data.summary.recentSubmissions)} hint="Latest response window" />
+        <CompactStat
+          label="Average per Form"
+          value={data.summary.totalForms ? average.toFixed(1) : "0"}
+          hint="Responses divided by forms"
+        />
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,0.95fr)]">
+        <Card className="border-[var(--border)] bg-[var(--surface)] p-5 shadow-[0_8px_24px_rgba(15,23,42,0.03)]">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">Activity feed</p>
+          <div className="mt-4">
             <SubmissionsList submissions={data.recentSubmissions} />
-          </section>
-        </main>
+          </div>
+        </Card>
+
+        <div className="space-y-4">
+          <SectionHeader eyebrow="Preview" title="Response preview" description="A compact glance at the latest submission." />
+          {data.recentSubmissions[0] ? (
+            <SubmissionPreviewCard submission={data.recentSubmissions[0]} />
+          ) : (
+            <EmptyState
+              title="Nothing to preview yet"
+              description="When a new response comes in, it will show up here with answer values grouped for quick scanning."
+            />
+          )}
+        </div>
       </div>
     </div>
   );

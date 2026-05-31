@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 
 import SiteFooter from "./SiteFooter";
+import InstallPrompt from "../pwa/InstallPrompt";
 
 const HIDDEN_FOOTER_PATHS = [
   "/dashboard",
@@ -32,6 +33,7 @@ export default function AppShell({ children }: AppShellProps) {
       <div className="flex-1">{children}</div>
 
       {!hideFooter ? <SiteFooter /> : null}
+      <InstallPrompt />
     </div>
   );
 }
