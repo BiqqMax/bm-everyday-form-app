@@ -462,12 +462,16 @@ function CreateFormCard() {
 
 function EditFormCard({
   form,
-  onShare,
   onOpen,
+  onEdit,
+  onShare,
+  onDelete,
 }: {
   form: DashboardForm;
-  onShare: (form: DashboardForm) => void;
   onOpen: (form: DashboardForm) => void;
+  onEdit: (form: DashboardForm) => void;
+  onShare: (form: DashboardForm) => void;
+  onDelete: (form: DashboardForm) => void;
 }) {
   const [state, formAction, isPending] = useActionState(updateFormAction, initialActionState);
   const [deleteState, deleteAction, isDeletePending] = useActionState(deleteFormAction, initialActionState);
@@ -750,7 +754,14 @@ function WorkspaceForms({
       {filteredForms.length ? (
         <div className="grid gap-4">
           {filteredForms.map((form) => (
-            <EditFormCard key={form.id} form={form} onShare={onShareForm} onOpen={handleOpenForm} />
+            <EditFormCard
+              key={form.id}
+              form={form}
+              onOpen={handleOpenForm}
+              onEdit={handleEditForm}
+              onShare={onShareForm}
+              onDelete={handleDeleteForm}
+            />
           ))}
         </div>
       ) : (
@@ -1070,6 +1081,20 @@ function MobileFormsPanel({
     });
   }, [data.forms, query, visibilityFilter]);
 
+  const handleOpenForm = (form: DashboardForm) => {
+    window.location.hash = `form-${form.id}`;
+  };
+
+  const handleEditForm = (form: DashboardForm) => {
+    window.location.hash = `form-${form.id}`;
+  };
+
+  const handleDeleteForm = (form: DashboardForm) => {
+    const confirmDelete = window.confirm(`Delete "${form.title}"? This cannot be undone.`);
+    if (!confirmDelete) return;
+    window.location.hash = `form-${form.id}`;
+  };
+
   return (
     <div className="space-y-6">
       <SectionHeader
@@ -1088,14 +1113,27 @@ function MobileFormsPanel({
 
       <CreateFormCard />
 
-      <FormsTable forms={filteredForms} />
+      <FormsTable
+        forms={filteredForms}
+        onOpen={handleOpenForm}
+        onEdit={handleEditForm}
+        onShare={onShareForm}
+        onDelete={handleDeleteForm}
+      />
 
       {filteredForms.length ? (
         <section className="space-y-4">
           <SectionHeader eyebrow="Editor" title="Edit forms" description="Expand cards to update form details or share links." />
           <div className="grid gap-4">
             {filteredForms.map((form) => (
-              <EditFormCard key={form.id} form={form} onShare={onShareForm} />
+              <EditFormCard
+                key={form.id}
+                form={form}
+                onOpen={handleOpenForm}
+                onEdit={handleEditForm}
+                onShare={onShareForm}
+                onDelete={handleDeleteForm}
+              />
             ))}
           </div>
         </section>
