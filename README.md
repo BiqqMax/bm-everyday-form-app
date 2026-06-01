@@ -69,13 +69,7 @@ http://localhost:3000
 
 ---
 
-## Environment Variables
 
-Required variables:
-
-```env
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
 ```
 
 Never expose service role keys in frontend code.
@@ -83,6 +77,7 @@ Never expose service role keys in frontend code.
 ---
 
 ## Project Structure
+
 
 ```text
 app/
@@ -103,14 +98,6 @@ public/
 * Server-side auth validation
 
 ---
-
-## Roadmap
-
-* QR code sharing
-* Analytics
-* Export tools
-* Team collaboration
-* Flutter mobile client
 
 ---
 
