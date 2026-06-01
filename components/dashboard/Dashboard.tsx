@@ -954,9 +954,9 @@ function MobileTabBar({
   return (
     <nav
       aria-label="Mobile dashboard navigation"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--border)] bg-[var(--surface)]/96 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-12px_40px_rgba(0,0,0,0.08)] backdrop-blur md:hidden"
+      className="fixed inset-x-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-40 rounded-[1.75rem] border border-[var(--border)] bg-[var(--surface)]/92 px-2 py-2 shadow-[0_18px_50px_rgba(0,0,0,0.14)] backdrop-blur md:hidden"
     >
-      <div className="mx-auto grid max-w-3xl grid-cols-4 gap-2">
+      <div className="mx-auto grid max-w-3xl grid-cols-4 gap-1">
         {MOBILE_TABS.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
@@ -968,10 +968,10 @@ function MobileTabBar({
               onClick={() => onTabChange(item.id)}
               aria-current={isActive ? "page" : undefined}
               className={joinClasses(
-                "inline-flex flex-col items-center justify-center gap-1 rounded-3xl border px-3 py-3 text-sm font-medium transition",
+                "inline-flex min-h-16 flex-col items-center justify-center gap-1 rounded-[1.4rem] border px-2 py-2 text-sm font-medium transition",
                 isActive
-                  ? "border-[rgba(15,93,70,0.22)] bg-[rgba(15,93,70,0.08)] text-[var(--accent)]"
-                  : "border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] hover:border-[rgba(15,93,70,0.18)] hover:bg-[var(--surface-subtle)]"
+                  ? "border-[rgba(15,93,70,0.18)] bg-[rgba(15,93,70,0.08)] text-[var(--accent)] shadow-[0_8px_24px_rgba(15,93,70,0.10)]"
+                  : "border-transparent bg-transparent text-[var(--foreground)] hover:border-[var(--border)] hover:bg-[var(--surface-subtle)]"
               )}
             >
               <Icon className="h-5 w-5" />
