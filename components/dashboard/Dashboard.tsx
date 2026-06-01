@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useMemo, useState, type ReactNode, type SVGProps } from "react";
 
 import Button from "../ui/Button";
 import Card from "../ui/Card";
@@ -27,11 +27,55 @@ const initialActionState: DashboardActionState = {
   message: "",
 };
 
-const MOBILE_TABS: Array<{ id: MobileTab; label: string }> = [
-  { id: "home", label: "Home" },
-  { id: "forms", label: "Forms" },
-  { id: "responses", label: "Responses" },
-  { id: "settings", label: "Settings" },
+type NavIconProps = SVGProps<SVGSVGElement>;
+
+function DashboardIcon(props: NavIconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
+      <rect x="4" y="4" width="7" height="7" rx="1.5" />
+      <rect x="13" y="4" width="7" height="4.5" rx="1.5" />
+      <rect x="13" y="10.5" width="7" height="9.5" rx="1.5" />
+      <rect x="4" y="13" width="7" height="7" rx="1.5" />
+    </svg>
+  );
+}
+
+function FormsIcon(props: NavIconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
+      <rect x="5" y="4" width="14" height="16" rx="2" />
+      <path d="M8 8h8" />
+      <path d="M8 12h8" />
+      <path d="M8 16h5" />
+    </svg>
+  );
+}
+
+function ResponsesIcon(props: NavIconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
+      <path d="M12 5c-4.418 0-8 2.686-8 6s3.582 6 8 6c.702 0 1.381-.068 2.024-.196L19 18l-1.61-3.22C18.4 13.655 20 12.41 20 11c0-3.314-3.582-6-8-6Z" />
+      <path d="M9 11h.01" />
+      <path d="M12 11h.01" />
+      <path d="M15 11h.01" />
+    </svg>
+  );
+}
+
+function SettingsIcon(props: NavIconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.05.05a2 2 0 1 1-2.83 2.83l-.05-.05A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.05.05a2 2 0 1 1-2.83-2.83l.05-.05A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.05-.05a2 2 0 1 1 2.83-2.83l.05.05A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.05-.05a2 2 0 1 1 2.83 2.83l-.05.05A1.65 1.65 0 0 0 19.4 9c.611 0 1.136.344 1.403.845.126.236.197.506.197.795a2 2 0 1 1 0 4c0-.289-.071-.559-.197-.795A1.65 1.65 0 0 0 19.4 15Z" />
+    </svg>
+  );
+}
+
+const MOBILE_TABS: Array<{ id: MobileTab; label: string; icon: (props: NavIconProps) => ReactNode }> = [
+  { id: "home", label: "Home", icon: DashboardIcon },
+  { id: "forms", label: "Forms", icon: FormsIcon },
+  { id: "responses", label: "Responses", icon: ResponsesIcon },
+  { id: "settings", label: "Settings", icon: SettingsIcon },
 ];
 
 function joinClasses(...classes: Array<string | false | null | undefined>) {
@@ -913,22 +957,28 @@ function MobileTabBar({
       className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--border)] bg-[var(--surface)]/96 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-12px_40px_rgba(0,0,0,0.08)] backdrop-blur md:hidden"
     >
       <div className="mx-auto grid max-w-3xl grid-cols-4 gap-2">
-        {MOBILE_TABS.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => onTabChange(item.id)}
-            aria-current={activeTab === item.id ? "page" : undefined}
-            className={joinClasses(
-              "inline-flex items-center justify-center rounded-3xl border px-3 py-3 text-sm font-medium transition",
-              activeTab === item.id
-                ? "border-[rgba(15,93,70,0.22)] bg-[rgba(15,93,70,0.08)] text-[var(--accent)]"
-                : "border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] hover:border-[rgba(15,93,70,0.18)] hover:bg-[var(--surface-subtle)]"
-            )}
-          >
-            {item.label}
-          </button>
-        ))}
+        {MOBILE_TABS.map((item) => {
+          const Icon = item.icon;
+          const isActive = activeTab === item.id;
+
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => onTabChange(item.id)}
+              aria-current={isActive ? "page" : undefined}
+              className={joinClasses(
+                "inline-flex flex-col items-center justify-center gap-1 rounded-3xl border px-3 py-3 text-sm font-medium transition",
+                isActive
+                  ? "border-[rgba(15,93,70,0.22)] bg-[rgba(15,93,70,0.08)] text-[var(--accent)]"
+                  : "border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] hover:border-[rgba(15,93,70,0.18)] hover:bg-[var(--surface-subtle)]"
+              )}
+            >
+              <Icon className="h-5 w-5" />
+              <span className="text-[11px] leading-none">{item.label}</span>
+            </button>
+          );
+        })}
       </div>
     </nav>
   );
