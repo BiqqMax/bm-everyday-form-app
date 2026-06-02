@@ -8,7 +8,7 @@ type AuthEntryGuardProps = {
 
 type ProtectedRouteGuardProps = {
   children: ReactNode;
-  expectedPath: "/dashboard" | "/onboarding" | "/settings";
+  expectedPath?: "/dashboard" | "/onboarding" | "/settings" | string;
 };
 
 export function AuthEntryGuard({ children }: AuthEntryGuardProps) {

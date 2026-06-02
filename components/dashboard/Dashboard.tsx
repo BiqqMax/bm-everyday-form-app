@@ -1,12 +1,15 @@
 "use client";
 
-import { useActionState, useMemo, useState, type ReactNode, type SVGProps } from "react";
+import { createContext, useActionState, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type SVGProps } from "react";
+import { useRouter } from "next/navigation";
 
 import Button from "../ui/Button";
 import Card from "../ui/Card";
 import Input from "../ui/Input";
-import type { DashboardActionState } from "../../lib/dashboard/actions";
-import { createFormAction, deleteFormAction, updateFormAction } from "../../lib/dashboard/actions";
+import Modal from "../ui/Modal";
+import type { CreateFormActionState, DashboardActionState } from "../../lib/dashboard/actions";
+import { createFormAction, deleteFormAction, updateFormAction, updateFormLifecycleAction } from "../../lib/dashboard/actions";
+import { CreateFormSuccessScreen, StepBasicInfo, StepFieldBuilder, StepReview, type CreateFormWizardField } from "./CreateFormModalSteps";
 import { buildPublicFormUrl, getShareStatus, getShareStatusLabel } from "../../lib/forms/public";
 import type { DashboardData, DashboardForm, DashboardSubmission } from "../../lib/dashboard/dashboard";
 import type { SettingsData } from "../../lib/settings/data";
@@ -22,10 +25,35 @@ type ShareTarget = {
   shareUrl: string;
 };
 
+type ToastTone = "success" | "error";
+
+type ToastMessage = {
+  id: number;
+  message: string;
+  tone: ToastTone;
+};
+
 const initialActionState: DashboardActionState = {
   status: "idle",
   message: "",
 };
+
+const createInitialActionState: CreateFormActionState = {
+  status: "idle",
+  message: "",
+};
+
+type CreatedFormIdentity = {
+  formId: string;
+  publicToken: string;
+};
+
+type DashboardToastContextValue = {
+  pushToast: (toast: Omit<ToastMessage, "id">) => void;
+};
+
+const DashboardToastContext = createContext<DashboardToastContextValue | null>(null);
+let toastSequence = 0;
 
 type NavIconProps = SVGProps<SVGSVGElement>;
 
@@ -82,6 +110,51 @@ function joinClasses(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
+function useDashboardToast() {
+  const context = useContext(DashboardToastContext);
+
+  if (!context) {
+    throw new Error("useDashboardToast must be used within the dashboard toast provider.");
+  }
+
+  return context;
+}
+
+function DashboardToastProvider({ children }: { children: ReactNode }) {
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  const pushToast = useCallback((toast: Omit<ToastMessage, "id">) => {
+    const id = ++toastSequence;
+    setToasts((current) => [...current, { ...toast, id }]);
+    window.setTimeout(() => {
+      setToasts((current) => current.filter((item) => item.id !== id));
+    }, 3500);
+  }, []);
+
+  const contextValue = useMemo(() => ({ pushToast }), [pushToast]);
+
+  return (
+    <DashboardToastContext.Provider value={contextValue}>
+      {children}
+      <div className="fixed right-4 top-4 z-[60] flex w-[min(22rem,calc(100vw-2rem))] flex-col gap-2 pointer-events-none">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className={joinClasses(
+              "pointer-events-auto rounded-[1rem] border px-4 py-3 text-sm font-medium shadow-[var(--shadow)]",
+              toast.tone === "error"
+                ? "border-[rgba(127,29,29,0.18)] bg-[#fff7f7] text-[#7f1d1d]"
+                : "border-[rgba(15,93,70,0.18)] bg-[rgba(15,93,70,0.08)] text-[var(--accent)]"
+            )}
+          >
+            {toast.message}
+          </div>
+        ))}
+      </div>
+    </DashboardToastContext.Provider>
+  );
+}
+
 function firstText(...values: unknown[]) {
   for (const value of values) {
     if (typeof value === "string" && value.trim()) return value.trim();
@@ -108,14 +181,29 @@ function averagePerForm(totalSubmissions: number, totalForms: number) {
 }
 
 function ActionMessage({ state }: { state: DashboardActionState }) {
-  if (state.status === "idle" || !state.message) return null;
+  const { pushToast } = useDashboardToast();
+  const lastToastKey = useRef<string | null>(null);
 
-  const tone =
-    state.status === "error"
-      ? "border-[var(--border)] bg-[var(--surface-subtle)] text-[#7f1d1d]"
-      : "border-[rgba(15,93,70,0.18)] bg-[rgba(15,93,70,0.08)] text-[var(--accent)]";
+  useEffect(() => {
+    if (state.status === "idle" || !state.message) {
+      lastToastKey.current = null;
+      return;
+    }
 
-  return <p className={`inline-flex items-center rounded-full border px-3 py-1 text-sm font-medium ${tone}`}>{state.message}</p>;
+    const toastKey = `${state.status}:${state.message}`;
+
+    if (lastToastKey.current === toastKey) {
+      return;
+    }
+
+    lastToastKey.current = toastKey;
+    pushToast({
+      message: state.message,
+      tone: state.status === "error" ? "error" : "success",
+    });
+  }, [pushToast, state.message, state.status]);
+
+  return null;
 }
 
 function EmptyState({
@@ -200,18 +288,7 @@ function CompactStat({ label, value, hint }: { label: string; value: string; hin
 }
 
 function VisibilityBadge({ isPublic }: { isPublic: boolean }) {
-  return (
-    <span
-      className={joinClasses(
-        "inline-flex rounded-full border px-3 py-1 text-xs font-semibold",
-        isPublic
-          ? "border-[rgba(15,93,70,0.16)] bg-[rgba(15,93,70,0.06)] text-[var(--accent)]"
-          : "border-[var(--border)] bg-[var(--surface-subtle)] text-[var(--muted-foreground)]"
-      )}
-    >
-      {isPublic ? "Public" : "Private"}
-    </span>
-  );
+  return <span className="text-xs font-medium text-[var(--muted-foreground)]">{isPublic ? "Public" : "Private"}</span>;
 }
 
 function SubmissionPreviewCard({ submission }: { submission: DashboardSubmission }) {
@@ -356,42 +433,267 @@ function FormsSearchBar({
   );
 }
 
-function FormsMobileList({ forms, onOpen, onEdit, onShare, onDelete }: { forms: DashboardForm[]; onOpen: (form: DashboardForm) => void; onEdit: (form: DashboardForm) => void; onShare: (form: DashboardForm) => void; onDelete: (form: DashboardForm) => void; }) {
+function MoreIcon() {
   return (
-    <div className="grid gap-3 md:hidden">
-      {forms.map((form) => (
-        <Card key={form.id} className="border-[var(--border)] bg-[var(--surface)] p-4 shadow-none">
-          <div className="space-y-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold tracking-tight text-[var(--foreground)]">{form.title}</p>
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--muted-foreground)]">
-                  <VisibilityBadge isPublic={form.isPublic} />
-                  <span>{form.submissionCount} responses</span>
-                  <span>{formatDateLong(form.updatedAt)}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid gap-2 text-xs text-[var(--muted-foreground)] sm:grid-cols-2">
-              <p className="truncate">{form.description || "No description provided."}</p>
-              <p className="sm:text-right">{form.lastSubmissionAt ? `Last response ${formatDateLong(form.lastSubmissionAt)}` : "No responses yet"}</p>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="secondary" size="sm" onClick={() => onOpen(form)}>Open</Button>
-              <Button type="button" variant="secondary" size="sm" onClick={() => onEdit(form)}>Edit</Button>
-              <Button type="button" variant="secondary" size="sm" onClick={() => onShare(form)}>Share</Button>
-              <Button type="button" variant="secondary" size="sm" onClick={() => onDelete(form)}>Delete</Button>
-            </div>
-          </div>
-        </Card>
-      ))}
-    </div>
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M12 5h.01" />
+      <path d="M12 12h.01" />
+      <path d="M12 19h.01" />
+    </svg>
   );
 }
 
-function FormsTable({ forms, onOpen, onEdit, onShare, onDelete }: { forms: DashboardForm[]; onOpen: (form: DashboardForm) => void; onEdit: (form: DashboardForm) => void; onShare: (form: DashboardForm) => void; onDelete: (form: DashboardForm) => void; }) {
+function FormCard({
+  form,
+  onOpen,
+  onShare,
+}: {
+  form: DashboardForm;
+  onOpen: (form: DashboardForm) => void;
+  onShare: (form: DashboardForm) => void;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [lifecycleState, lifecycleAction, isLifecyclePending] = useActionState(updateFormLifecycleAction, initialActionState);
+  const [deleteState, deleteAction, isDeletePending] = useActionState(deleteFormAction, initialActionState);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  const actionButtonClassName = "h-8 px-3 text-xs";
+
+  useEffect(() => {
+    if (!menuOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [menuOpen]);
+
+  useEffect(() => {
+    if (lifecycleState.status === "success") {
+      setSettingsOpen(false);
+    }
+  }, [lifecycleState.status]);
+
+  useEffect(() => {
+    if (deleteState.status === "success") {
+      setDeleteOpen(false);
+    }
+  }, [deleteState.status]);
+
+  const visibilityAction = form.isPublic ? "private" : "public";
+  const lifecycleActionKind = form.expiresAt ? "resume" : "pause";
+  const lifecycleActionLabel = form.expiresAt ? "Resume sharing" : "Pause sharing";
+
+  return (
+    <>
+      <Card className="border-[var(--border)] bg-[var(--surface)] px-4 py-4 shadow-none transition-colors hover:bg-[var(--surface-subtle)]">
+        <div className="space-y-2.5 md:hidden">
+          <div className="flex min-w-0 items-baseline gap-2">
+            <p className="min-w-0 truncate text-sm font-semibold tracking-tight text-[var(--foreground)]">{form.title}</p>
+            <VisibilityBadge isPublic={form.isPublic} />
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[var(--muted-foreground)]">
+              <span>{form.submissionCount} responses</span>
+              <span>{formatDateLong(form.updatedAt)}</span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="button" variant="secondary" size="sm" onClick={() => onOpen(form)} className={actionButtonClassName}>
+                Edit
+              </Button>
+              <Button type="button" variant="secondary" size="sm" onClick={() => onShare(form)} className={actionButtonClassName}>
+                Share
+              </Button>
+
+              <div ref={menuRef} className="relative">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setMenuOpen((current) => !current)}
+                  className="h-8 px-3"
+                  aria-label={`More actions for ${form.title}`}
+                  aria-expanded={menuOpen}
+                >
+                  More
+                </Button>
+
+                {menuOpen ? (
+                  <div className="absolute right-0 top-full z-20 mt-2 w-44 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-1 shadow-[var(--shadow)]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        setSettingsOpen(true);
+                      }}
+                      className="flex w-full items-center rounded-xl px-3 py-2 text-left text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--surface-subtle)]"
+                    >
+                      Settings
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        setDeleteOpen(true);
+                      }}
+                      className="flex w-full items-center rounded-xl px-3 py-2 text-left text-sm font-medium text-[#b42318] transition hover:bg-[rgba(180,35,24,0.08)]"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="hidden md:grid md:grid-cols-[minmax(0,1fr)_auto_auto_auto] md:items-center md:gap-x-4">
+          <div className="min-w-0 flex items-baseline gap-2">
+            <p className="min-w-0 truncate text-sm font-semibold tracking-tight text-[var(--foreground)]">{form.title}</p>
+            <VisibilityBadge isPublic={form.isPublic} />
+          </div>
+
+          <p className="text-sm text-[var(--muted-foreground)]">{form.submissionCount} responses</p>
+          <p className="text-sm text-[var(--muted-foreground)]">{formatDateLong(form.updatedAt)}</p>
+
+          <div className="flex items-center justify-end gap-2">
+            <Button type="button" variant="secondary" size="sm" onClick={() => onOpen(form)} className={actionButtonClassName}>
+              Edit
+            </Button>
+            <Button type="button" variant="secondary" size="sm" onClick={() => onShare(form)} className={actionButtonClassName}>
+              Share
+            </Button>
+
+            <div ref={menuRef} className="relative">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setMenuOpen((current) => !current)}
+                className="h-8 px-3"
+                aria-label={`More actions for ${form.title}`}
+                aria-expanded={menuOpen}
+              >
+                More
+              </Button>
+
+              {menuOpen ? (
+                <div className="absolute right-0 top-full z-20 mt-2 w-44 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-1 shadow-[var(--shadow)]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setSettingsOpen(true);
+                    }}
+                    className="flex w-full items-center rounded-xl px-3 py-2 text-left text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--surface-subtle)]"
+                  >
+                    Settings
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setDeleteOpen(true);
+                    }}
+                    className="flex w-full items-center rounded-xl px-3 py-2 text-left text-sm font-medium text-[#b42318] transition hover:bg-[rgba(180,35,24,0.08)]"
+                  >
+                    Delete
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      <Modal open={settingsOpen} onClose={() => setSettingsOpen(false)} title={`${form.title} settings`}>
+        <div className="space-y-4">
+          <p className="text-sm leading-6 text-[var(--muted-foreground)]">
+            Control publishing and lifecycle settings from the dashboard list.
+          </p>
+
+          <form action={lifecycleAction} className="space-y-3">
+            <input type="hidden" name="formId" value={form.id} />
+
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Button type="submit" name="visibility" value={visibilityAction} variant="secondary" size="sm">
+                {form.isPublic ? "Make private" : "Publish"}
+              </Button>
+              <Button type="submit" name="actionKind" value={lifecycleActionKind} variant="secondary" size="sm">
+                {lifecycleActionLabel}
+              </Button>
+              <Button type="submit" name="actionKind" value="archive" variant="secondary" size="sm" className="sm:col-span-2">
+                Archive form
+              </Button>
+            </div>
+
+            <ActionMessage state={lifecycleState} />
+          </form>
+        </div>
+      </Modal>
+
+      <Modal open={deleteOpen} onClose={() => setDeleteOpen(false)} title={`Delete "${form.title}"?`}>
+        <div className="space-y-4">
+          <p className="text-sm leading-6 text-[var(--muted-foreground)]">This cannot be undone.</p>
+
+          <form
+            action={deleteAction}
+            onSubmit={(event) => {
+              if (!window.confirm(`Delete "${form.title}"? This cannot be undone.`)) {
+                event.preventDefault();
+              }
+            }}
+            className="space-y-4"
+          >
+            <input type="hidden" name="formId" value={form.id} />
+
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <Button type="button" variant="secondary" size="sm" onClick={() => setDeleteOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" disabled={isDeletePending}>
+                {isDeletePending ? "Deleting..." : "Delete form"}
+              </Button>
+            </div>
+
+            <ActionMessage state={deleteState} />
+          </form>
+        </div>
+      </Modal>
+    </>
+  );
+}
+
+function FormsTable({
+  forms,
+  onOpen,
+  onShare,
+}: {
+  forms: DashboardForm[];
+  onOpen: (form: DashboardForm) => void;
+  onShare: (form: DashboardForm) => void;
+}) {
   if (!forms.length) {
     return (
       <Card className="border-[var(--border)] bg-[var(--surface)] p-6 shadow-none">
@@ -402,105 +704,392 @@ function FormsTable({ forms, onOpen, onEdit, onShare, onDelete }: { forms: Dashb
   }
 
   return (
-    <>
-      <div className="md:hidden">
-        <FormsMobileList forms={forms} onOpen={onOpen} onEdit={onEdit} onShare={onShare} onDelete={onDelete} />
-      </div>
-      <Card className="hidden overflow-hidden border-[var(--border)] bg-[var(--surface)] shadow-none md:block">
-        <div className="border-b border-[var(--border)] px-5 py-4 sm:px-6">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">Forms</p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full table-fixed divide-y divide-[var(--border)] text-left">
-            <thead className="bg-[var(--surface-subtle)]">
-              <tr className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
-                <th className="w-[34%] px-5 py-3 sm:px-6">Form</th>
-                <th className="w-[12%] px-5 py-3">Visibility</th>
-                <th className="w-[12%] px-5 py-3">Responses</th>
-                <th className="w-[22%] px-5 py-3">Updated</th>
-                <th className="w-[20%] px-5 py-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--border)]">
-              {forms.map((form) => (
-                <tr key={form.id} className="align-top">
-                  <td className="px-5 py-4 sm:px-6">
-                    <div className="min-w-0 space-y-1">
-                      <p className="truncate font-medium text-[var(--foreground)]">{form.title}</p>
-                      <p className="truncate text-sm leading-6 text-[var(--muted-foreground)]">
-                        {form.description || "No description provided."}
-                      </p>
-                      <p className="text-xs text-[var(--muted-foreground)]">{form.lastSubmissionAt ? `Last response ${formatDateLong(form.lastSubmissionAt)}` : "No responses yet"}</p>
-                    </div>
-                  </td>
-                  <td className="px-5 py-4">
-                    <VisibilityBadge isPublic={form.isPublic} />
-                  </td>
-                  <td className="px-5 py-4">
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-[var(--foreground)]">{form.submissionCount}</p>
-                      <p className="text-xs text-[var(--muted-foreground)]">responses</p>
-                    </div>
-                  </td>
-                  <td className="px-5 py-4 text-sm text-[var(--muted-foreground)]">{formatDateLong(form.updatedAt)}</td>
-                  <td className="px-5 py-4">
-                    <div className="flex flex-wrap justify-end gap-2">
-                      <Button type="button" variant="secondary" size="sm" onClick={() => onOpen(form)}>Open</Button>
-                      <Button type="button" variant="secondary" size="sm" onClick={() => onEdit(form)}>Edit</Button>
-                      <Button type="button" variant="secondary" size="sm" onClick={() => onShare(form)}>Share</Button>
-                      <Button type="button" variant="secondary" size="sm" onClick={() => onDelete(form)}>Delete</Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-    </>
+    <div className="grid gap-2.5">
+      {forms.map((form) => (
+        <FormCard key={form.id} form={form} onOpen={onOpen} onShare={onShare} />
+      ))}
+    </div>
   );
 }
 
-function CreateFormCard() {
-  const [state, formAction, isPending] = useActionState(createFormAction, initialActionState);
+function CreateFormModalContent({
+  onClose,
+  onRestart,
+  onManageCreatedForm,
+  onShareCreatedForm,
+  step,
+  setStep,
+}: {
+  onClose: () => void;
+  onRestart: () => void;
+  onManageCreatedForm: (identity: CreatedFormIdentity | null) => void;
+  onShareCreatedForm: (identity: CreatedFormIdentity | null) => void;
+  step: 1 | 2 | 3;
+  setStep: (step: 1 | 2 | 3) => void;
+}) {
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [isPublic, setIsPublic] = useState(false);
+  const [fields, setFields] = useState<CreateFormWizardField[]>([]);
+  const [activeFieldId, setActiveFieldId] = useState<string | null>(null);
+  const [fieldFocusPulseKey, setFieldFocusPulseKey] = useState(0);
+  const [titleTouched, setTitleTouched] = useState(false);
+  const [step1Attempted, setStep1Attempted] = useState(false);
+  const [step2Attempted, setStep2Attempted] = useState(false);
+  const [createSucceeded, setCreateSucceeded] = useState(false);
+  const [createdFormIdentity, setCreatedFormIdentity] = useState<CreatedFormIdentity | null>(null);
+  const fieldListRegionRef = useRef<HTMLDivElement | null>(null);
+
+  const isStep1 = step === 1;
+  const isStep2 = step === 2;
+  const isStep3 = step === 3;
+  const isSuccess = createSucceeded;
+
+  const isTitleValid = title.trim().length > 0;
+  const hasFields = fields.length > 0;
+  const titleError = !isTitleValid && (titleTouched || step1Attempted) ? "A form title is required." : undefined;
+  const fieldsError = !hasFields && step2Attempted ? "Add at least one field to continue." : undefined;
+  const canGoNext = isStep1 ? isTitleValid : isStep2 ? hasFields : true;
+  const canCreate = isTitleValid && hasFields;
+
+  const focusField = (id: string) => {
+    setActiveFieldId(id);
+    setFieldFocusPulseKey((current) => current + 1);
+  };
+
+  const addField = () => {
+    const id = `field-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    setFields((current) => [
+      ...current,
+      {
+        id,
+        type: "text",
+        label: "",
+        required: false,
+      },
+    ]);
+    focusField(id);
+  };
+
+  const updateField = (id: string, updates: Partial<CreateFormWizardField>) => {
+    setFields((current) => current.map((field) => (field.id === id ? { ...field, ...updates } : field)));
+  };
+
+  const removeField = (id: string) => {
+    setFields((current) => {
+      const removeIndex = current.findIndex((field) => field.id === id);
+      const nextFields = current.filter((field) => field.id !== id);
+
+      if (activeFieldId === id) {
+        const nextActiveField =
+          nextFields[removeIndex] ?? nextFields[removeIndex - 1] ?? nextFields[0] ?? null;
+
+        setActiveFieldId(nextActiveField?.id ?? null);
+
+        if (nextActiveField) {
+          setFieldFocusPulseKey((currentKey) => currentKey + 1);
+        }
+      } else if (activeFieldId && !nextFields.some((field) => field.id === activeFieldId)) {
+        const fallbackActiveField = nextFields[removeIndex] ?? nextFields[removeIndex - 1] ?? nextFields[0] ?? null;
+        setActiveFieldId(fallbackActiveField?.id ?? null);
+
+        if (fallbackActiveField) {
+          setFieldFocusPulseKey((currentKey) => currentKey + 1);
+        }
+      }
+
+      return nextFields;
+    });
+  };
+
+  const goBack = () => {
+    if (step > 1) {
+      setStep(((step - 1) as 1 | 2 | 3));
+    }
+  };
+
+  const goNext = () => {
+    if (isStep1) {
+      setTitleTouched(true);
+      setStep1Attempted(true);
+
+      if (!isTitleValid) {
+        return;
+      }
+    }
+
+    if (isStep2) {
+      setStep2Attempted(true);
+
+      if (!hasFields) {
+        return;
+      }
+    }
+
+    if (step < 3) {
+      setStep((step + 1) as 1 | 2 | 3);
+    }
+  };
+
+  const handleManageForm = () => {
+    onManageCreatedForm(createdFormIdentity);
+  };
+
+  const handleShareForm = () => {
+    onShareCreatedForm(createdFormIdentity);
+  };
+
+  const handleCreateAnother = () => {
+    setCreateSucceeded(false);
+    onRestart();
+  };
+
+  const handleCreateSuccess = (identity: CreatedFormIdentity) => {
+    setCreatedFormIdentity(identity);
+    setCreateSucceeded(true);
+  };
 
   return (
-    <Card className="border-[var(--border)] bg-[var(--surface)] p-4 shadow-none">
-      <div className="space-y-4">
-        <div className="space-y-1.5">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--accent)]">Create form</p>
-          <h3 className="text-lg font-semibold tracking-tight text-[var(--foreground)]">New form</h3>
-          <p className="text-sm leading-5 text-[var(--muted-foreground)]">Fast setup for a new form.</p>
+    <div className="flex h-full min-h-0 flex-col gap-3">
+      <div className="shrink-0 border-b border-[var(--border)] px-4 py-3 sm:px-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 space-y-1">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">{isSuccess ? "Success" : `Step ${step}`}</p>
+            <h2 className="text-xl font-semibold tracking-tight text-[var(--foreground)]">
+              {isSuccess ? "Form created" : isStep1 ? "Basic Info" : isStep2 ? "Build Form" : "Review Form"}
+            </h2>
+            <p className="text-sm leading-5 text-[var(--muted-foreground)]">
+              {isSuccess
+                ? "Your form is ready to receive responses."
+                : isStep1
+                  ? "Set the form title and description."
+                  : isStep2
+                    ? "Add and configure fields."
+                    : "Review everything before publishing."}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close create form modal"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-subtle)] text-[var(--foreground)] transition hover:bg-[var(--surface-muted)]"
+          >
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 6 6 18" />
+              <path d="M6 6l12 12" />
+            </svg>
+          </button>
         </div>
+      </div>
 
-        <form action={formAction} className="space-y-3.5">
-          <Input name="title" label="Title" placeholder="Field trip permission slip" required />
-          <label className="block text-sm">
-            <span className="mb-1.5 block text-sm font-medium text-[var(--muted-foreground)]">Description</span>
-            <textarea
-              name="description"
-              rows={3}
-              className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] px-4 py-3 text-[var(--foreground)] outline-none transition-colors placeholder:text-[var(--muted)] focus-visible:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-0"
-              placeholder="Add a short note about what this form is for."
-            />
-          </label>
-          <label className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] px-4 py-3 text-sm text-[var(--foreground)]">
-            <input
-              type="checkbox"
-              name="isPublic"
-              className="h-4 w-4 rounded border-[var(--border)] bg-transparent text-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-0"
-            />
-            Make this form publicly accessible
-          </label>
+      {isSuccess ? (
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+          <CreateFormSuccessScreen
+            title={title || "Untitled form"}
+            formId={createdFormIdentity?.formId ?? ""}
+            publicToken={createdFormIdentity?.publicToken ?? ""}
+            onManageForm={handleManageForm}
+            onShareForm={handleShareForm}
+            onCreateAnother={handleCreateAnother}
+          />
+        </div>
+      ) : isStep3 ? (
+        <CreateFormSubmissionStep
+          title={title}
+          description={description}
+          isPublic={isPublic}
+          fields={fields}
+          canCreate={canCreate}
+          onBack={goBack}
+          onCreateSuccess={handleCreateSuccess}
+        />
+      ) : (
+        <>
+          {isStep2 ? (
+            <div className="min-h-0 flex-1 overflow-hidden px-4 py-4 sm:px-5">
+              <StepFieldBuilder
+                fields={fields}
+                activeFieldId={activeFieldId}
+                focusPulseKey={fieldFocusPulseKey}
+                onActivateField={focusField}
+                addField={addField}
+                updateField={updateField}
+                removeField={removeField}
+                listRegionRef={(node) => {
+                  fieldListRegionRef.current = node;
+                }}
+              />
+            </div>
+          ) : (
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+              <StepBasicInfo
+                title={title}
+                description={description}
+                isPublic={isPublic}
+                titleError={titleError}
+                onTitleChange={(value) => {
+                  setTitle(value);
+                  if (!titleTouched) {
+                    setTitleTouched(true);
+                  }
+                }}
+                onDescriptionChange={setDescription}
+                onIsPublicChange={setIsPublic}
+              />
+            </div>
+          )}
+
+          <footer className="shrink-0 border-t border-[var(--border)] px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-sm leading-5 text-[#b42318]">
+                {isStep1 && titleError ? titleError : null}
+                {isStep2 && fieldsError ? fieldsError : null}
+              </div>
+
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                {isStep1 ? (
+                  <Button type="button" onClick={goNext} disabled={!canGoNext} className="sm:min-w-44">
+                    Next
+                  </Button>
+                ) : (
+                  <>
+                    <Button type="button" variant="secondary" onClick={goBack} className="sm:min-w-44">
+                      Back
+                    </Button>
+                    <Button type="button" onClick={goNext} disabled={!canGoNext} className="sm:min-w-44">
+                      Next
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          </footer>
+        </>
+      )}
+    </div>
+  );
+}
+
+function CreateFormSubmissionStep({
+  title,
+  description,
+  isPublic,
+  fields,
+  canCreate,
+  onBack,
+  onCreateSuccess,
+}: {
+  title: string;
+  description: string;
+  isPublic: boolean;
+  fields: CreateFormWizardField[];
+  canCreate: boolean;
+  onBack: () => void;
+  onCreateSuccess: (identity: CreatedFormIdentity) => void;
+}) {
+  const [state, formAction, isPending] = useActionState(createFormAction, createInitialActionState);
+  const successReportedRef = useRef(false);
+
+  useEffect(() => {
+    if (state.status === "success") {
+      if (!successReportedRef.current) {
+        successReportedRef.current = true;
+        onCreateSuccess({
+          formId: state.formId,
+          publicToken: state.publicToken,
+        });
+      }
+
+      return;
+    }
+
+    successReportedRef.current = false;
+  }, [onCreateSuccess, state]);
+
+  return (
+    <form action={formAction} className="flex h-full min-h-0 flex-col gap-3">
+      <input type="hidden" name="title" value={title} />
+      <input type="hidden" name="description" value={description} />
+      <input type="hidden" name="isPublic" value={String(isPublic)} />
+      <input type="hidden" name="fields" value={JSON.stringify(fields)} />
+
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+        <StepReview title={title} description={description} isPublic={isPublic} fields={fields} />
+      </div>
+
+      <footer className="shrink-0 border-t border-[var(--border)] px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-sm leading-5 text-[#b42318]">{!canCreate ? "Add a title and at least one field before creating." : null}</div>
+
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <Button type="submit" disabled={isPending} className="sm:min-w-44">
+            <Button type="button" variant="secondary" onClick={onBack} className="sm:min-w-44">
+              Back
+            </Button>
+            <Button type="submit" disabled={isPending || !canCreate} className="sm:min-w-44">
               {isPending ? "Creating..." : "Create form"}
             </Button>
-            <ActionMessage state={state} />
           </div>
-        </form>
-      </div>
-    </Card>
+        </div>
+        <ActionMessage state={state} />
+      </footer>
+    </form>
+  );
+}
+
+function CreateFormModal({
+  open,
+  onClose,
+  onCreateAnother,
+  onManageCreatedForm,
+  onShareCreatedForm,
+  formKey,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onCreateAnother: () => void;
+  onManageCreatedForm: (identity: CreatedFormIdentity | null) => void;
+  onShareCreatedForm: (identity: CreatedFormIdentity | null) => void;
+  formKey: number;
+}) {
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+
+  useEffect(() => {
+    if (open) {
+      setStep(1);
+    }
+  }, [open, formKey]);
+
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-0 backdrop-blur-[2px] sm:items-center sm:p-4"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-label="Create form"
+        className="flex h-[100dvh] w-full flex-col overflow-hidden border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] shadow-[var(--shadow)] sm:h-auto sm:max-h-[88dvh] sm:max-w-lg sm:rounded-[var(--radius-xl)]"
+      >
+        <CreateFormModalContent
+          key={formKey}
+          onClose={onClose}
+          onRestart={onCreateAnother}
+          onManageCreatedForm={onManageCreatedForm}
+          onShareCreatedForm={onShareCreatedForm}
+          step={step}
+          setStep={setStep}
+        />
+      </section>
+    </div>
   );
 }
 
@@ -717,9 +1306,13 @@ function WorkspaceOverview({
 function WorkspaceForms({
   data,
   onShareForm,
+  onOpenCreateForm,
+  onEditForm,
 }: {
   data: DashboardData;
   onShareForm: (form: DashboardForm) => void;
+  onOpenCreateForm: () => void;
+  onEditForm: (form: DashboardForm) => void;
 }) {
   const [query, setQuery] = useState("");
   const [visibilityFilter, setVisibilityFilter] = useState<FormVisibilityFilter>("all");
@@ -742,33 +1335,20 @@ function WorkspaceForms({
     });
   }, [data.forms, query, visibilityFilter]);
 
-  const visibleCount = filteredForms.length;
-  const totalCount = data.forms.length;
-
-  const handleOpenForm = (form: DashboardForm) => {
-    window.location.hash = `form-${form.id}`;
-  };
-
-  const handleEditForm = (form: DashboardForm) => {
-    window.location.hash = `form-${form.id}`;
-  };
-
-  const handleDeleteForm = (form: DashboardForm) => {
-    const confirmDelete = window.confirm(`Delete "${form.title}"? This cannot be undone.`);
-    if (!confirmDelete) return;
-    window.location.hash = `form-${form.id}`;
-  };
 
   return (
     <div className="space-y-4">
-      <section className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <section className="flex flex-col gap-3">
         <div className="space-y-1">
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">Forms</p>
           <h2 className="text-2xl font-semibold tracking-tight text-[var(--foreground)]">Forms</h2>
+          <p className="max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">Manage and organize your forms</p>
         </div>
-        <Button size="sm" type="button" onClick={() => { }}>
-          Create Form
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" onClick={onOpenCreateForm} className="w-fit">
+            Create Form
+          </Button>
+        </div>
       </section>
 
       <FormsSearchBar
@@ -778,39 +1358,9 @@ function WorkspaceForms({
         onVisibilityFilterChange={setVisibilityFilter}
       />
 
-      <Card className="border-[var(--border)] bg-[var(--surface)] px-4 py-3 shadow-none">
-        <div className="flex items-center justify-between gap-3 text-sm text-[var(--muted-foreground)]">
-          <p>
-            Showing {visibleCount} of {totalCount} form{totalCount === 1 ? "" : "s"}
-          </p>
-          <p>Compact management view</p>
-        </div>
-      </Card>
+      <FormsTable forms={filteredForms} onOpen={onEditForm} onShare={onShareForm} />
 
-      <FormsTable
-        forms={filteredForms}
-        onOpen={handleOpenForm}
-        onEdit={handleEditForm}
-        onShare={onShareForm}
-        onDelete={handleDeleteForm}
-      />
-
-      {filteredForms.length ? (
-        <div className="grid gap-4">
-          {filteredForms.map((form) => (
-            <EditFormCard
-              key={form.id}
-              form={form}
-              onOpen={handleOpenForm}
-              onEdit={handleEditForm}
-              onShare={onShareForm}
-              onDelete={handleDeleteForm}
-            />
-          ))}
-        </div>
-      ) : (
-        <EmptyState title="No matching forms" description="Try another search term or clear the visibility filter." />
-      )}
+      {filteredForms.length ? null : <EmptyState title="No matching forms" description="Try another search term or clear the visibility filter." />}
     </div>
   );
 }
@@ -870,9 +1420,12 @@ export default function Dashboard({
   userEmail?: string | null;
   settings: SettingsData;
 }) {
-  const { desktopTab } = useDesktopTab();
+  const router = useRouter();
+  const { desktopTab, setDesktopTab } = useDesktopTab();
   const [mobileTab, setMobileTab] = useState<MobileTab>("home");
   const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
+  const [createFormOpen, setCreateFormOpen] = useState(false);
+  const [createFormKey, setCreateFormKey] = useState(0);
   const source = data as DashboardSource;
 
   const displayName = firstText(
@@ -882,12 +1435,64 @@ export default function Dashboard({
     userEmail ? userEmail.split("@")[0] : "",
     "Dashboard"
   );
+
   const handleShareForm = (form: DashboardForm) => {
     const origin = window.location.origin;
     setShareTarget({
       form,
       shareUrl: buildPublicFormUrl(origin, displayName, form.publicToken),
     });
+  };
+
+  const handleShareCreatedForm = (identity: CreatedFormIdentity | null) => {
+    if (!identity) {
+      return;
+    }
+
+    const origin = window.location.origin;
+    setCreateFormOpen(false);
+    setShareTarget({
+      form: {
+        id: identity.formId,
+        title: "Untitled form",
+        description: null,
+        isPublic: true,
+        publicSlug: "",
+        publicToken: identity.publicToken,
+        expiresAt: null,
+        responseLimit: null,
+        responseCount: 0,
+        createdAt: "",
+        updatedAt: "",
+        fieldCount: 0,
+        submissionCount: 0,
+        lastSubmissionAt: null,
+      },
+      shareUrl: buildPublicFormUrl(origin, displayName, identity.publicToken),
+    });
+  };
+
+  const handleEditForm = (form: DashboardForm) => {
+    router.push(`/forms/${form.id}/edit`);
+  };
+
+  const handleOpenCreateForm = () => {
+    setCreateFormKey((current) => current + 1);
+    setCreateFormOpen(true);
+  };
+
+  const handleCreateAnother = () => {
+    setCreateFormKey((current) => current + 1);
+  };
+
+  const handleManageCreatedForm = (identity: CreatedFormIdentity | null) => {
+    if (!identity) {
+      return;
+    }
+
+    setCreateFormOpen(false);
+    setDesktopTab("forms");
+    router.push(`/forms/${identity.formId}/edit`);
   };
 
   const activeShareStatus = shareTarget ? getShareStatus(shareTarget.form) : null;
@@ -897,49 +1502,59 @@ export default function Dashboard({
   };
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
-      <div className="space-y-3.5 px-4 py-4 pb-18 sm:px-6 sm:py-6 lg:px-8 lg:py-7">
+    <DashboardToastProvider>
+      <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
+        <div className="space-y-3.5 px-4 py-4 pb-18 sm:px-6 sm:py-6 lg:px-8 lg:py-7">
+          {desktopTab === "overview" ? (
+            <div id="overview" className="hidden md:block">
+              <WorkspaceOverview data={data} userEmail={userEmail} />
+            </div>
+          ) : (
+            <div id="workspace" className="hidden md:block space-y-3.5">
+              {desktopTab === "forms" ? (
+                <WorkspaceForms data={data} onShareForm={handleShareForm} onOpenCreateForm={handleOpenCreateForm} onEditForm={handleEditForm} />
+              ) : desktopTab === "responses" ? (
+                <WorkspaceResponses data={data} />
+              ) : (
+                <WorkspaceSettings settings={settings} />
+              )}
+            </div>
+          )}
 
-        {desktopTab === "overview" ? (
-          <div id="overview" className="hidden md:block">
-            <WorkspaceOverview data={data} userEmail={userEmail} />
-          </div>
-        ) : (
-          <div id="workspace" className="hidden md:block space-y-3.5">
-            {desktopTab === "forms" ? (
-              <WorkspaceForms data={data} onShareForm={handleShareForm} />
-            ) : desktopTab === "responses" ? (
-              <WorkspaceResponses data={data} />
+          <div className="space-y-4 md:hidden">
+            {mobileTab === "home" ? (
+              <MobileHomePanel data={data} displayName={displayName} onTabChange={handleMobileTabChange} />
+            ) : mobileTab === "forms" ? (
+              <MobileFormsPanel data={data} onShareForm={handleShareForm} onOpenCreateForm={handleOpenCreateForm} onEditForm={handleEditForm} />
+            ) : mobileTab === "responses" ? (
+              <MobileResponsesPanel data={data} />
             ) : (
-              <WorkspaceSettings settings={settings} />
+              <MobileSettingsPanel settings={settings} />
             )}
           </div>
-        )}
-
-        <div className="space-y-4 md:hidden">
-          {mobileTab === "home" ? (
-            <MobileHomePanel data={data} displayName={displayName} onTabChange={handleMobileTabChange} />
-          ) : mobileTab === "forms" ? (
-            <MobileFormsPanel data={data} onShareForm={handleShareForm} onTabChange={handleMobileTabChange} />
-          ) : mobileTab === "responses" ? (
-            <MobileResponsesPanel data={data} />
-          ) : (
-            <MobileSettingsPanel settings={settings} />
-          )}
         </div>
+
+        <MobileTabBar activeTab={mobileTab} onTabChange={handleMobileTabChange} />
+
+        <ShareModal
+          open={Boolean(shareTarget)}
+          onClose={() => setShareTarget(null)}
+          formTitle={shareTarget?.form.title ?? ""}
+          shareUrl={shareTarget?.shareUrl ?? ""}
+          statusLabel={activeShareStatus ? getShareStatusLabel(activeShareStatus) : undefined}
+          published={shareTarget?.form.isPublic ?? true}
+        />
+
+        <CreateFormModal
+          open={createFormOpen}
+          formKey={createFormKey}
+          onClose={() => setCreateFormOpen(false)}
+          onCreateAnother={handleCreateAnother}
+          onManageCreatedForm={handleManageCreatedForm}
+          onShareCreatedForm={handleShareCreatedForm}
+        />
       </div>
-
-      <MobileTabBar activeTab={mobileTab} onTabChange={handleMobileTabChange} />
-
-      <ShareModal
-        open={Boolean(shareTarget)}
-        onClose={() => setShareTarget(null)}
-        formTitle={shareTarget?.form.title ?? ""}
-        shareUrl={shareTarget?.shareUrl ?? ""}
-        statusLabel={activeShareStatus ? getShareStatusLabel(activeShareStatus) : undefined}
-        published={shareTarget?.form.isPublic ?? true}
-      />
-    </div>
+    </DashboardToastProvider>
   );
 }
 
@@ -1104,11 +1719,13 @@ function MobileHomePanel({
 function MobileFormsPanel({
   data,
   onShareForm,
-  onTabChange,
+  onOpenCreateForm,
+  onEditForm,
 }: {
   data: DashboardData;
   onShareForm: (form: DashboardForm) => void;
-  onTabChange: (tab: MobileTab) => void;
+  onOpenCreateForm: () => void;
+  onEditForm: (form: DashboardForm) => void;
 }) {
   const [query, setQuery] = useState("");
   const [visibilityFilter, setVisibilityFilter] = useState<FormVisibilityFilter>("all");
@@ -1131,28 +1748,21 @@ function MobileFormsPanel({
     });
   }, [data.forms, query, visibilityFilter]);
 
-  const handleOpenForm = (form: DashboardForm) => {
-    window.location.hash = `form-${form.id}`;
-  };
-
-  const handleEditForm = (form: DashboardForm) => {
-    window.location.hash = `form-${form.id}`;
-  };
-
-  const handleDeleteForm = (form: DashboardForm) => {
-    const confirmDelete = window.confirm(`Delete "${form.title}"? This cannot be undone.`);
-    if (!confirmDelete) return;
-    window.location.hash = `form-${form.id}`;
-  };
 
   return (
     <div className="space-y-6">
-      <SectionHeader
-        eyebrow="Forms"
-        title="Manage forms"
-        description="Search, filter, and edit forms from a mobile-first list."
-        meta={data.forms.length ? `${filteredForms.length} visible of ${data.forms.length} total` : "No forms yet"}
-      />
+      <section className="flex flex-col gap-3">
+        <div className="space-y-1">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">Forms</p>
+          <h2 className="text-2xl font-semibold tracking-tight text-[var(--foreground)]">Forms</h2>
+          <p className="max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">Manage and organize your forms</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" onClick={onOpenCreateForm} className="w-fit">
+            Create Form
+          </Button>
+        </div>
+      </section>
 
       <FormsSearchBar
         query={query}
@@ -1161,35 +1771,9 @@ function MobileFormsPanel({
         onVisibilityFilterChange={setVisibilityFilter}
       />
 
-      <CreateFormCard />
+      <FormsTable forms={filteredForms} onOpen={onEditForm} onShare={onShareForm} />
 
-      <FormsTable
-        forms={filteredForms}
-        onOpen={handleOpenForm}
-        onEdit={handleEditForm}
-        onShare={onShareForm}
-        onDelete={handleDeleteForm}
-      />
-
-      {filteredForms.length ? (
-        <section className="space-y-4">
-          <SectionHeader eyebrow="Editor" title="Edit forms" description="Expand cards to update form details or share links." />
-          <div className="grid gap-4">
-            {filteredForms.map((form) => (
-              <EditFormCard
-                key={form.id}
-                form={form}
-                onOpen={handleOpenForm}
-                onEdit={handleEditForm}
-                onShare={onShareForm}
-                onDelete={handleDeleteForm}
-              />
-            ))}
-          </div>
-        </section>
-      ) : (
-        <EmptyState title="No matching forms" description="Try another search term or clear the visibility filter." />
-      )}
+      {filteredForms.length ? null : <EmptyState title="No matching forms" description="Try another search term or clear the visibility filter." />}
     </div>
   );
 }
