@@ -39,6 +39,7 @@ export default function EditFormEditor({ form }: { form: EditableForm }) {
   const [focusPulseKey, setFocusPulseKey] = useState(0);
   const [titleTouched, setTitleTouched] = useState(false);
   const [step1Attempted, setStep1Attempted] = useState(false);
+  const [step3Errors, setStep3Errors] = useState<string[]>([]);
   const fieldListRegionRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -132,6 +133,38 @@ export default function EditFormEditor({ form }: { form: EditableForm }) {
     }
   };
 
+  const handleFinalSubmit = () => {
+    if (isPending) {
+      return;
+    }
+
+    const nextErrors: string[] = [];
+
+    if (title.trim().length === 0) {
+      nextErrors.push("Title is required");
+    }
+
+    if (fields.length === 0) {
+      nextErrors.push("At least one field is required");
+    }
+
+    if (nextErrors.length > 0) {
+      setStep3Errors(nextErrors);
+      return;
+    }
+
+    setStep3Errors([]);
+
+    const formData = new FormData();
+    formData.append("formId", form.id);
+    formData.append("title", title);
+    formData.append("description", description);
+    formData.append("isPublic", String(isPublic));
+    formData.append("fields", JSON.stringify(fields));
+
+    formAction(formData);
+  };
+
   return (
     <Card className="border-[var(--border)] bg-[var(--surface)] p-4 shadow-none sm:p-5">
       <form action={formAction} onSubmit={handleSubmit} className="flex min-h-[34rem] flex-col">
@@ -184,7 +217,15 @@ export default function EditFormEditor({ form }: { form: EditableForm }) {
             </div>
           ) : null}
 
-          {step === 3 ? <StepReview title={title} description={description} isPublic={isPublic} fields={fields} /> : null}
+          {step === 3 ? (
+            <StepReview
+              title={title}
+              description={description}
+              isPublic={isPublic}
+              fields={fields}
+              validationErrors={step3Errors}
+            />
+          ) : null}
         </div>
 
         <div className="shrink-0 border-t border-[var(--border)] pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
@@ -207,7 +248,7 @@ export default function EditFormEditor({ form }: { form: EditableForm }) {
                   Next
                 </Button>
               ) : (
-                <Button type="submit" disabled={isPending || !canContinueFromStep1} className="sm:min-w-40">
+                <Button type="button" onClick={handleFinalSubmit} className="sm:min-w-40">
                   {isPending ? "Saving..." : "Save changes"}
                 </Button>
               )}

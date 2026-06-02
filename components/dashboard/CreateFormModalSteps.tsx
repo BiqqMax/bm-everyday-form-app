@@ -48,6 +48,7 @@ type StepReviewProps = {
   description: string;
   isPublic: boolean;
   fields: CreateFormWizardField[];
+  validationErrors?: string[];
 };
 
 type CreateFormSuccessScreenProps = {
@@ -756,10 +757,17 @@ export function StepFieldBuilder({
   );
 }
 
-export function StepReview({ title, description, isPublic, fields }: StepReviewProps) {
+export function StepReview({ title, description, isPublic, fields, validationErrors }: StepReviewProps) {
   return (
     <div className="space-y-3 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
       <div className="space-y-3">
+        {validationErrors?.length ? (
+          <div className="space-y-1 rounded-[var(--radius-md)] border border-[rgba(180,35,24,0.2)] bg-[rgba(180,35,24,0.06)] px-3 py-2 text-sm text-[#b42318]">
+            {validationErrors.map((error) => (
+              <p key={error}>{error}</p>
+            ))}
+          </div>
+        ) : null}
         <div className="space-y-2">
           <p className="text-sm font-semibold tracking-tight text-[var(--foreground)]">Form details</p>
 
