@@ -9,14 +9,18 @@ type Props = {
   open: boolean;
   onClose: () => void;
   title?: string;
+  ariaLabel?: string;
+  ariaDescribedBy?: string;
   children?: ReactNode;
+  footer?: ReactNode;
+  className?: string;
 };
 
 function joinClasses(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(' ');
 }
 
-export default function Modal({ open, onClose, title, children }: Props) {
+export default function Modal({ open, onClose, title, ariaLabel, ariaDescribedBy, children, footer, className }: Props) {
   const ref = useRef<HTMLDivElement | null>(null);
   const titleId = useId();
 
@@ -103,18 +107,25 @@ export default function Modal({ open, onClose, title, children }: Props) {
         role="dialog"
         aria-modal="true"
         aria-labelledby={title ? titleId : undefined}
+        aria-label={title ? undefined : ariaLabel}
+        aria-describedby={ariaDescribedBy}
         tabIndex={-1}
         className={joinClasses(
           'relative z-10 w-full max-w-lg rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)] p-6 text-foreground shadow-[var(--shadow)]',
+          className,
         )}
       >
         {title ? <h2 id={titleId} className="text-lg font-semibold tracking-tight text-foreground">{title}</h2> : null}
         <div className={title ? 'mt-4' : ''}>{children}</div>
-        <div className="mt-6 flex justify-end">
-          <Button type="button" variant="secondary" size="md" onClick={onClose} className="w-20">
-            Close
-          </Button>
-        </div>
+        {footer ?? (
+          title ? (
+            <div className="mt-6 flex justify-end">
+              <Button type="button" variant="secondary" size="md" onClick={onClose} className="w-20">
+                Close
+              </Button>
+            </div>
+          ) : null
+        )}
       </div>
     </div>
   );

@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 
 import { buildPublicFormUrl, buildPublicFormVanityUrl } from "../../lib/forms/public";
+import Button from "../ui/Button";
+import Modal from "../ui/Modal";
 
 export interface ShareModalProps {
   open: boolean;
@@ -30,10 +32,10 @@ function getStatusTone(statusLabel?: string, published = true): StatusTone {
 function getToneClasses(tone: StatusTone) {
   switch (tone) {
     case "active":
-      return "border-[rgba(15,93,70,0.16)] bg-[rgba(15,93,70,0.06)] text-[var(--accent)]";
+      return "border-[rgba(15,93,70,0.18)] bg-[rgba(15,93,70,0.08)] text-[var(--accent)]";
     case "expired":
     case "limit_reached":
-      return "border-[rgba(180,35,24,0.18)] bg-[rgba(180,35,24,0.06)] text-[#7f1d1d]";
+      return "border-[rgba(180,35,24,0.18)] bg-[rgba(180,35,24,0.08)] text-[#7f1d1d]";
     case "draft":
     default:
       return "border-[var(--border)] bg-[var(--surface-subtle)] text-[var(--muted-foreground)]";
@@ -72,7 +74,7 @@ export default function ShareModal({
   statusLabel,
   published = true,
 }: ShareModalProps) {
-  const [copied, setCopied] = useState<"canonical" | "vanity" | null>(null);
+  const [copied, setCopied] = useState<"primary" | "branded" | null>(null);
   const [origin, setOrigin] = useState("");
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
   const [qrError, setQrError] = useState<string>("");
@@ -92,23 +94,15 @@ export default function ShareModal({
       return;
     }
 
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    };
-
-    document.addEventListener("keydown", onKeyDown);
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
     return () => {
-      document.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = previousOverflow;
     };
-  }, [open, onClose]);
+  }, [open]);
 
-  const canonicalUrl = useMemo(() => {
+  const primaryUrl = useMemo(() => {
     if (!origin || !qr_share_token) {
       return "";
     }
@@ -116,7 +110,7 @@ export default function ShareModal({
     return buildPublicFormUrl(origin, qr_share_token);
   }, [origin, qr_share_token]);
 
-  const vanityUrl = useMemo(() => {
+  const brandedUrl = useMemo(() => {
     if (!origin || !qr_share_token || !displayName) {
       return "";
     }
@@ -125,7 +119,7 @@ export default function ShareModal({
   }, [displayName, origin, qr_share_token]);
 
   useEffect(() => {
-    if (!open || !canonicalUrl || tone === "draft") {
+    if (!open || !primaryUrl || tone === "draft") {
       setQrDataUrl("");
       setQrError("");
       return;
@@ -134,7 +128,7 @@ export default function ShareModal({
     let active = true;
     setQrError("");
 
-    QRCode.toDataURL(canonicalUrl, {
+    QRCode.toDataURL(primaryUrl, {
       margin: 1,
       width: 320,
       errorCorrectionLevel: "M",
@@ -158,7 +152,7 @@ export default function ShareModal({
     return () => {
       active = false;
     };
-  }, [canonicalUrl, open, tone]);
+  }, [open, primaryUrl, tone]);
 
   useEffect(() => {
     if (!copied) {
@@ -170,10 +164,15 @@ export default function ShareModal({
   }, [copied]);
 
   const fileName = useMemo(() => `${slugifyFileName(formTitle)}-qr.png`, [formTitle]);
-  const canShare = Boolean(canonicalUrl) && tone !== "draft";
+  const canShare = Boolean(primaryUrl) && tone !== "draft";
+  const accessMessage =
+    tone === "draft"
+      ? "Publish this form to let anyone with these links access and submit it."
+      : "Anyone with these links can access and submit your form.";
+  const descriptionId = "share-modal-description";
 
-  const handleCopy = async (kind: "canonical" | "vanity") => {
-    const value = kind === "canonical" ? canonicalUrl : vanityUrl;
+  const handleCopy = async (kind: "primary" | "branded") => {
+    const value = kind === "primary" ? primaryUrl : brandedUrl;
 
     if (!value || !canShare) return;
 
@@ -202,41 +201,35 @@ export default function ShareModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-4"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
-          onClose();
-        }
-      }}
+    <Modal
+      open={open}
+      onClose={onClose}
+      ariaLabel={`Share ${formTitle}`}
+      ariaDescribedBy={descriptionId}
+      className="max-w-none overflow-hidden p-0 sm:max-h-[92dvh] sm:max-w-4xl sm:rounded-3xl"
     >
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Share ${formTitle}`}
-        className="flex h-[100dvh] w-full flex-col overflow-hidden bg-white text-slate-900 shadow-2xl sm:h-auto sm:max-h-[90dvh] sm:max-w-5xl sm:rounded-3xl"
-      >
-        <header className="border-b border-slate-200 px-5 py-4 sm:px-6">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${getToneClasses(tone)}`}>
-                  <span className={`mr-1.5 h-2 w-2 rounded-full ${getToneDotClasses(tone)}`} />
-                  {statusText}
-                </span>
-                <span className="text-xs text-slate-500">Shareable link and QR code</span>
-              </div>
-              <h2 className="mt-2 truncate text-xl font-semibold sm:text-2xl">{formTitle}</h2>
+      <div className="flex max-h-[100dvh] min-h-[100dvh] flex-col bg-white text-slate-900 sm:min-h-0 sm:max-h-[92dvh]">
+        <header className="border-b border-slate-200 px-4 py-4 sm:px-6 sm:py-5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Share your form</p>
+              <h2 className="truncate text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">{formTitle}</h2>
+              <p id={descriptionId} className="max-w-2xl text-sm leading-5 text-slate-600">
+                {accessMessage}
+              </p>
+              <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${getToneClasses(tone)}`}>
+                <span className={`mr-1.5 h-2 w-2 rounded-full ${getToneDotClasses(tone)}`} />
+                {statusText}
+              </span>
             </div>
 
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"
               aria-label="Close share modal"
             >
-              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                 <path d="M18 6 6 18" />
                 <path d="m6 6 12 12" />
               </svg>
@@ -244,134 +237,179 @@ export default function ShareModal({
           </div>
         </header>
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
-            <div className="space-y-4">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <label htmlFor="canonical-url" className="block text-sm font-medium text-slate-700">
-                    Canonical link
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => handleCopy("canonical")}
-                    disabled={!canShare}
-                    className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-900 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {copied === "canonical" ? "Copied" : "Copy"}
-                  </button>
-                </div>
+        <div className="flex min-h-0 flex-1 flex-col gap-3 px-4 py-4 sm:gap-4 sm:px-6 sm:py-5">
+          <ShareLinkRow
+            label="Primary Link"
+            description="Use this link to share your form."
+            value={primaryUrl}
+            copyLabel={copied === "primary" ? "Copied" : "Copy"}
+            onCopy={() => handleCopy("primary")}
+            canCopy={canShare}
+            primary
+          />
 
-                <input
-                  id="canonical-url"
-                  readOnly
-                  value={canonicalUrl}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
-                />
-              </div>
+          <ShareLinkRow
+            label="Branded Link"
+            description="Includes your display name for a more recognizable URL."
+            value={brandedUrl}
+            copyLabel={copied === "branded" ? "Copied" : "Copy"}
+            onCopy={() => handleCopy("branded")}
+            canCopy={Boolean(brandedUrl) && canShare}
+          />
 
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <label htmlFor="vanity-url" className="block text-sm font-medium text-slate-700">
-                    Vanity link
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => handleCopy("vanity")}
-                    disabled={!canShare}
-                    className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-900 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {copied === "vanity" ? "Copied" : "Copy"}
-                  </button>
-                </div>
-
-                <input
-                  id="vanity-url"
-                  readOnly
-                  value={vanityUrl}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
-                />
-
-                <p className="mt-2 text-xs leading-5 text-slate-500">Both links open the same form. The display name is cosmetic only.</p>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                <h3 className="text-sm font-medium text-slate-900">What this link does</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Use either public URL to collect responses. The QR code matches the canonical token URL exactly.
+          <section className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 sm:px-4 sm:py-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="text-sm font-semibold tracking-tight text-slate-900 sm:text-base">Share with QR Code</h3>
+                <p className="mt-1 text-xs leading-5 text-slate-600 sm:text-sm sm:leading-6">
+                  Scan this QR code to open the form instantly.
                 </p>
               </div>
+
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={handleDownload}
+                disabled={!qrDataUrl}
+                className="h-9 shrink-0 px-3 text-xs"
+              >
+                Download
+              </Button>
             </div>
-          </div>
 
-          <aside className="border-t border-slate-200 bg-slate-50 px-5 py-5 sm:px-6 lg:w-[360px] lg:border-l lg:border-t-0">
-            <div className="flex h-full flex-col gap-4">
-              <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h3 className="text-sm font-medium text-slate-900">QR preview</h3>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">Download or scan to open the form on mobile.</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleDownload}
-                    disabled={!qrDataUrl}
-                    className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium text-slate-900 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Download
-                  </button>
+            <div className="mt-3 flex items-center justify-center">
+              {qrDataUrl ? (
+                <img
+                  src={qrDataUrl}
+                  alt={`QR code for ${formTitle}`}
+                  className="h-auto w-full max-w-[168px] rounded-2xl bg-white p-2 shadow-sm sm:max-w-[200px] sm:p-3"
+                />
+              ) : qrError ? (
+                <div className="max-w-xs py-4 text-center">
+                  <p className="text-sm font-semibold text-slate-900">QR unavailable</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-600 sm:text-sm sm:leading-6">{qrError}</p>
                 </div>
-
-                <div className="mt-4 flex min-h-[240px] items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">
-                  {qrDataUrl ? (
-                    <img
-                      src={qrDataUrl}
-                      alt={`QR code for ${formTitle}`}
-                      className="h-auto w-full max-w-[240px] rounded-xl bg-white p-3 shadow-sm"
-                    />
-                  ) : qrError ? (
-                    <div className="max-w-xs text-center">
-                      <p className="text-sm font-medium text-slate-900">QR unavailable</p>
-                      <p className="mt-2 text-sm leading-6 text-slate-600">{qrError}</p>
-                    </div>
-                  ) : tone === "draft" ? (
-                    <div className="max-w-xs text-center">
-                      <p className="text-sm font-medium text-slate-900">Draft forms cannot be shared</p>
-                      <p className="mt-2 text-sm leading-6 text-slate-600">Publish this form before generating a link or QR code.</p>
-                    </div>
-                  ) : (
-                    <div className="text-center">
-                      <div className="mx-auto h-10 w-10 animate-pulse rounded-xl bg-slate-200" />
-                      <p className="mt-3 text-sm text-slate-500">Generating QR code…</p>
-                    </div>
-                  )}
+              ) : tone === "draft" ? (
+                <div className="max-w-xs py-4 text-center">
+                  <p className="text-sm font-semibold text-slate-900">Publish to share</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-600 sm:text-sm sm:leading-6">
+                    Publish this form before generating a link or QR code.
+                  </p>
                 </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h3 className="text-sm font-medium text-slate-900">Status</h3>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">
-                      {tone === "active"
-                        ? "This form is ready to share."
-                        : tone === "expired"
-                          ? "The response window has closed."
-                          : tone === "limit_reached"
-                            ? "The response limit has been reached."
-                            : "Publish the form before sharing it."}
-                    </p>
-                  </div>
-                  <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${getToneClasses(tone)}`}>
-                    <span className={`mr-1.5 h-2 w-2 rounded-full ${getToneDotClasses(tone)}`} />
-                    {statusText}
-                  </span>
+              ) : (
+                <div className="py-4 text-center">
+                  <div className="mx-auto h-8 w-8 animate-pulse rounded-2xl bg-slate-200" />
+                  <p className="mt-2 text-xs text-slate-500 sm:text-sm">Generating QR code…</p>
                 </div>
-              </div>
+              )}
             </div>
-          </aside>
+          </section>
+
+          <section className="grid grid-cols-3 gap-2">
+            <StatChip
+              label="Status"
+              value={statusText}
+              hint={
+                tone === "active"
+                  ? "Ready"
+                  : tone === "expired"
+                    ? "Closed"
+                    : tone === "limit_reached"
+                      ? "Full"
+                      : "Draft"
+              }
+            />
+            <StatChip label="Access" value={published ? "Public" : "Private"} hint="Open" />
+            <StatChip label="Sharing" value={tone === "draft" ? "Off" : "Live"} hint="Dashboard" />
+          </section>
         </div>
-      </section>
+      </div>
+    </Modal>
+  );
+}
+
+function ShareLinkRow({
+  label,
+  description,
+  value,
+  copyLabel,
+  onCopy,
+  canCopy,
+  primary = false,
+}: {
+  label: string;
+  description: string;
+  value: string;
+  copyLabel: string;
+  onCopy: () => void;
+  canCopy: boolean;
+  primary?: boolean;
+}) {
+  const hasValue = Boolean(value);
+
+  return (
+    <section
+      className={
+        primary
+          ? "rounded-2xl border border-[rgba(15,93,70,0.2)] bg-[rgba(15,93,70,0.05)] px-3 py-3 sm:px-4"
+          : "rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 sm:px-4"
+      }
+    >
+      <div className="mb-2 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-sm font-semibold tracking-tight text-slate-900 sm:text-base">{label}</h3>
+            <span
+              className={
+                primary
+                  ? "inline-flex items-center rounded-full border border-[rgba(15,93,70,0.18)] bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--accent)]"
+                  : "inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500"
+              }
+            >
+              {primary ? "Recommended" : "Optional"}
+            </span>
+          </div>
+          <p className="mt-1 text-xs leading-5 text-slate-600 sm:text-sm">{description}</p>
+        </div>
+
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onClick={onCopy}
+          disabled={!canCopy}
+          className="h-9 shrink-0 px-3 text-xs"
+        >
+          {copyLabel}
+        </Button>
+      </div>
+
+      <div className="flex min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2">
+        {hasValue ? (
+          <p className="min-w-0 flex-1 truncate text-sm font-medium leading-5 text-slate-900 select-all">{value}</p>
+        ) : (
+          <p className="min-w-0 flex-1 truncate text-sm leading-5 text-slate-500">Add a display name to create a branded link.</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function StatChip({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string;
+  hint: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white px-2 py-2 text-center shadow-[0_4px_12px_rgba(15,23,42,0.03)]">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</p>
+      <p className="mt-1 truncate text-sm font-semibold text-slate-900">{value}</p>
+      <p className="mt-0.5 text-[10px] leading-4 text-slate-500">{hint}</p>
     </div>
   );
 }
