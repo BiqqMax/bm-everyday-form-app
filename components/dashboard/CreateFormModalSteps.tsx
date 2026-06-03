@@ -838,7 +838,7 @@ export function CreateFormSuccessScreen({
 }: CreateFormSuccessScreenProps) {
   return (
     <Card className="border-[var(--border)] bg-[var(--surface)] p-4 shadow-none">
-      <div className="w-full max-w-md space-y-6 text-center">
+      <div className="w-full max-w-md space-y-8 text-center">
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-[rgba(15,93,70,0.16)] bg-[rgba(15,93,70,0.08)] text-[var(--accent)]">
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M20 6 9 17l-5-5" />
@@ -850,7 +850,7 @@ export function CreateFormSuccessScreen({
           <p className="text-sm leading-5 text-[var(--muted-foreground)]">{title} is ready to receive responses.</p>
         </div>
 
-        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-center">
+        <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:flex-wrap sm:justify-center">
           <Button type="button" onClick={onManageForm} className="sm:min-w-44">
             Manage form
           </Button>

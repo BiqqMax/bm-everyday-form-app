@@ -852,21 +852,21 @@ function CreateFormModalContent({
     <div className="flex h-full min-h-0 flex-col gap-3">
       <div className="shrink-0 border-b border-[var(--border)] px-4 py-3 sm:px-5">
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 space-y-1">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">{isSuccess ? "Success" : `Step ${step}`}</p>
-            <h2 className="text-xl font-semibold tracking-tight text-[var(--foreground)]">
-              {isSuccess ? "Form created" : isStep1 ? "Basic Info" : isStep2 ? "Build Form" : "Review Form"}
-            </h2>
-            <p className="text-sm leading-5 text-[var(--muted-foreground)]">
-              {isSuccess
-                ? "Your form is ready to receive responses."
-                : isStep1
+          {!isSuccess ? (
+            <div className="min-w-0 space-y-1">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">Step {step}</p>
+              <h2 className="text-xl font-semibold tracking-tight text-[var(--foreground)]">
+                {isStep1 ? "Basic Info" : isStep2 ? "Build Form" : "Review Form"}
+              </h2>
+              <p className="text-sm leading-5 text-[var(--muted-foreground)]">
+                {isStep1
                   ? "Set the form title and description."
                   : isStep2
                     ? "Add and configure fields."
                     : "Review everything before publishing."}
-            </p>
-          </div>
+              </p>
+            </div>
+          ) : null}
           <button
             type="button"
             onClick={onClose}
