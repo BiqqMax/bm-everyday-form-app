@@ -3,27 +3,18 @@
 import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 
+import { buildPublicFormUrl } from "../../lib/forms/public";
+
 export interface ShareModalProps {
   open: boolean;
   onClose: () => void;
   formTitle: string;
-  shareUrl: string;
+  publicSlug: string;
   statusLabel?: string;
   published?: boolean;
 }
 
 type StatusTone = "active" | "expired" | "limit_reached" | "draft";
-
-function slugify(value: string) {
-  return (
-    value
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 64) || "form"
-  );
-}
 
 function getStatusTone(statusLabel?: string, published = true): StatusTone {
   const normalized = statusLabel?.toLowerCase().trim();
@@ -61,19 +52,38 @@ function getToneDotClasses(tone: StatusTone) {
   }
 }
 
+function slugifyFileName(value: string) {
+  return (
+    value
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "form"
+  );
+}
+
 export default function ShareModal({
   open,
   onClose,
   formTitle,
-  shareUrl,
+  publicSlug,
   statusLabel,
   published = true,
 }: ShareModalProps) {
   const [copied, setCopied] = useState(false);
+  const [origin, setOrigin] = useState("");
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
   const [qrError, setQrError] = useState<string>("");
   const tone = getStatusTone(statusLabel, published);
   const statusText = statusLabel ?? (published ? "Active" : "Draft");
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    setOrigin(window.location.origin);
+  }, [open]);
 
   useEffect(() => {
     if (!open) {
@@ -95,6 +105,14 @@ export default function ShareModal({
       document.body.style.overflow = previousOverflow;
     };
   }, [open, onClose]);
+
+  const shareUrl = useMemo(() => {
+    if (!origin || !publicSlug) {
+      return "";
+    }
+
+    return buildPublicFormUrl(origin, publicSlug);
+  }, [origin, publicSlug]);
 
   useEffect(() => {
     if (!open || !shareUrl || tone === "draft") {
@@ -141,7 +159,7 @@ export default function ShareModal({
     return () => window.clearTimeout(timeout);
   }, [copied]);
 
-  const fileName = useMemo(() => `${slugify(formTitle)}-qr.png`, [formTitle]);
+  const fileName = useMemo(() => `${slugifyFileName(formTitle)}-qr.png`, [formTitle]);
   const canShare = Boolean(shareUrl) && tone !== "draft";
 
   const handleCopy = async () => {
@@ -153,11 +171,6 @@ export default function ShareModal({
     } catch {
       setCopied(false);
     }
-  };
-
-  const handleOpen = () => {
-    if (!canShare) return;
-    window.open(shareUrl, "_blank", "noopener,noreferrer");
   };
 
   const handleDownload = () => {
@@ -196,9 +209,7 @@ export default function ShareModal({
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <span
-                  className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${getToneClasses(tone)}`}
-                >
+                <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${getToneClasses(tone)}`}>
                   <span className={`mr-1.5 h-2 w-2 rounded-full ${getToneDotClasses(tone)}`} />
                   {statusText}
                 </span>
@@ -225,44 +236,34 @@ export default function ShareModal({
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
             <div className="space-y-4">
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <label htmlFor="share-url" className="mb-2 block text-sm font-medium text-slate-700">
-                  Public link
-                </label>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <label htmlFor="share-url" className="block text-sm font-medium text-slate-700">
+                    Public link
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleCopy}
+                    disabled={!canShare}
+                    className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-900 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {copied ? "Copied" : "Copy"}
+                  </button>
+                </div>
+
                 <input
                   id="share-url"
                   readOnly
                   value={shareUrl}
                   className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
                 />
-                <p className="mt-2 text-xs leading-5 text-slate-500">
-                  Anyone with this link can open the published form.
-                </p>
-              </div>
 
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <button
-                  type="button"
-                  onClick={handleCopy}
-                  disabled={!canShare}
-                  className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {copied ? "Copied" : "Copy link"}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleOpen}
-                  disabled={!canShare}
-                  className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-900 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Open link
-                </button>
+                <p className="mt-2 text-xs leading-5 text-slate-500">Anyone with this link can open the published form.</p>
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-white p-4">
                 <h3 className="text-sm font-medium text-slate-900">What this link does</h3>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Use the public URL to collect responses. The QR code works well for print materials, signage,
-                  or quick sharing from another device.
+                  Use the public URL to collect responses. The QR code matches the same URL exactly.
                 </p>
               </div>
             </div>
@@ -274,9 +275,7 @@ export default function ShareModal({
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <h3 className="text-sm font-medium text-slate-900">QR preview</h3>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">
-                      Download or scan to open the form on mobile.
-                    </p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">Download or scan to open the form on mobile.</p>
                   </div>
                   <button
                     type="button"
@@ -303,9 +302,7 @@ export default function ShareModal({
                   ) : tone === "draft" ? (
                     <div className="max-w-xs text-center">
                       <p className="text-sm font-medium text-slate-900">Draft forms cannot be shared</p>
-                      <p className="mt-2 text-sm leading-6 text-slate-600">
-                        Publish this form before generating a link or QR code.
-                      </p>
+                      <p className="mt-2 text-sm leading-6 text-slate-600">Publish this form before generating a link or QR code.</p>
                     </div>
                   ) : (
                     <div className="text-center">
@@ -330,9 +327,7 @@ export default function ShareModal({
                             : "Publish the form before sharing it."}
                     </p>
                   </div>
-                  <span
-                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${getToneClasses(tone)}`}
-                  >
+                  <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${getToneClasses(tone)}`}>
                     <span className={`mr-1.5 h-2 w-2 rounded-full ${getToneDotClasses(tone)}`} />
                     {statusText}
                   </span>

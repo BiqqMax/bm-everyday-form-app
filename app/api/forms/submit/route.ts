@@ -13,7 +13,6 @@ type PublicFormRow = {
   owner_id: string;
   is_public: boolean;
   public_slug: string;
-  qr_share_token: string;
   expires_at: string | null;
   response_limit: number | null;
   response_count: number;
@@ -77,12 +76,14 @@ function getFriendlyMessage(error: unknown, fallback: string) {
   return message && message !== "An unexpected error occurred." ? message : fallback;
 }
 
-async function loadPublicFormByToken(supabase: Awaited<ReturnType<typeof createClient>>, publicToken: string) {
+async function loadPublicFormBySlug(supabase: Awaited<ReturnType<typeof createClient>>, publicSlug: string) {
+  console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=loadPublicFormBySlug query=form_lookup table=forms publicSlug");
   const { data, error } = await supabase
     .from("forms")
-    .select("id,title,description,owner_id,is_public,public_slug,qr_share_token,expires_at,response_limit,response_count")
-    .eq("qr_share_token", publicToken)
+    .select("id,title,description,owner_id,is_public,public_slug,expires_at,response_limit,response_count")
+    .eq("public_slug", publicSlug)
     .maybeSingle();
+  console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=loadPublicFormBySlug query=form_lookup table=forms success");
 
   if (error) {
     throw error;
@@ -92,11 +93,13 @@ async function loadPublicFormByToken(supabase: Awaited<ReturnType<typeof createC
 }
 
 async function loadFormFields(supabase: Awaited<ReturnType<typeof createClient>>, formId: string) {
+  console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=loadFormFields query=form_fields table=form_fields formId");
   const { data, error } = await supabase
     .from("form_fields")
     .select("id,label,field_type,is_required,options,position")
     .eq("form_id", formId)
     .order("position", { ascending: true });
+  console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=loadFormFields query=form_fields table=form_fields success");
 
   if (error) {
     throw error;
@@ -109,14 +112,14 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const formId = getFormString(formData, "formId");
-    const publicToken = getFormString(formData, "publicToken");
+    const publicSlug = getFormString(formData, "publicSlug");
 
-    if (!formId || !publicToken) {
+    if (!formId || !publicSlug) {
       return NextResponse.json({ message: "This form could not be submitted." }, { status: 400 });
     }
 
     const supabase = await createClient();
-    const form = await loadPublicFormByToken(supabase, publicToken);
+    const form = await loadPublicFormBySlug(supabase, publicSlug);
 
     if (!form || form.id !== formId) {
       return NextResponse.json({ message: "This form link is invalid or unavailable." }, { status: 404 });
@@ -161,6 +164,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=POST query=submissions_insert table=submissions");
     const submissionInsert = await supabase
       .from("submissions")
       .insert({
@@ -169,6 +173,7 @@ export async function POST(request: NextRequest) {
       })
       .select("id")
       .maybeSingle();
+    console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=POST query=submissions_insert table=submissions success");
 
     if (submissionInsert.error || !submissionInsert.data) {
       return NextResponse.json(
@@ -188,10 +193,14 @@ export async function POST(request: NextRequest) {
       }));
 
     if (answersToInsert.length > 0) {
+      console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=POST query=submission_answers_insert table=submission_answers");
       const { error: answersError } = await supabase.from("submission_answers").insert(answersToInsert);
+      console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=POST query=submission_answers_insert table=submission_answers success");
 
       if (answersError) {
+        console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=POST query=submissions_delete_cleanup table=submissions");
         await supabase.from("submissions").delete().eq("id", submissionId);
+        console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=POST query=submissions_delete_cleanup table=submissions success");
         return NextResponse.json(
           { message: getFriendlyMessage(answersError, "We couldn't save all response answers.") },
           { status: 400 }
@@ -199,11 +208,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=POST query=forms_update table=forms");
     const { error: refreshError } = await supabase
       .from("forms")
       .update({ response_count: form.response_count + 1 })
       .eq("id", form.id)
-      .eq("qr_share_token", publicToken);
+      .eq("public_slug", publicSlug);
+    console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=POST query=forms_update table=forms success");
 
     if (refreshError) {
       return NextResponse.json(

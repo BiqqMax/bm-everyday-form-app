@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 type DashboardFormRow = {
   id: string;
+  owner_id: string;
   title: string;
   description: string | null;
   is_public: boolean;
@@ -11,6 +12,7 @@ type DashboardFormRow = {
   qr_share_token: string;
   expires_at: string | null;
   response_limit: number | null;
+  response_count: number;
   created_at: string;
   updated_at: string;
 };
@@ -45,7 +47,7 @@ export type DashboardForm = {
   description: string | null;
   isPublic: boolean;
   publicSlug: string;
-  publicToken: string;
+  qrShareToken: string;
   expiresAt: string | null;
   responseLimit: number | null;
   responseCount: number;
@@ -151,11 +153,13 @@ function logQueryFailure(queryName: string, error: unknown) {
 }
 
 export async function getDashboardData(supabase: SupabaseClient, userId: string): Promise<DashboardData> {
+  console.log("[DASHBOARD] file=lib/dashboard/dashboard.ts function=getDashboardData query=forms table=forms owner_id");
   const formsResult = await supabase
     .from("forms")
-    .select("id,title,description,is_public,public_slug,qr_share_token,expires_at,response_limit,created_at,updated_at")
+    .select("id,owner_id,title,description,is_public,public_slug,qr_share_token,created_at,updated_at,expires_at,response_limit,response_count")
     .eq("owner_id", userId)
     .order("created_at", { ascending: false });
+  console.log("[DASHBOARD] file=lib/dashboard/dashboard.ts function=getDashboardData query=forms table=forms success");
 
   if (formsResult.error) {
     logQueryFailure("getDashboardData.forms", formsResult.error);
@@ -180,6 +184,8 @@ export async function getDashboardData(supabase: SupabaseClient, userId: string)
 
   const formIds = forms.map((form) => form.id);
 
+  console.log("[DASHBOARD] file=lib/dashboard/dashboard.ts function=getDashboardData query=form_fields table=form_fields formIds");
+  console.log("[DASHBOARD] file=lib/dashboard/dashboard.ts function=getDashboardData query=submissions table=submissions formIds");
   const [fieldsResult, submissionsResult] = await Promise.all([
     supabase
       .from("form_fields")
@@ -193,6 +199,8 @@ export async function getDashboardData(supabase: SupabaseClient, userId: string)
       .in("form_id", formIds)
       .order("created_at", { ascending: false }),
   ]);
+  console.log("[DASHBOARD] file=lib/dashboard/dashboard.ts function=getDashboardData query=form_fields table=form_fields success");
+  console.log("[DASHBOARD] file=lib/dashboard/dashboard.ts function=getDashboardData query=submissions table=submissions success");
 
   if (fieldsResult.error) {
     logQueryFailure("getDashboardData.form_fields", fieldsResult.error);
@@ -259,16 +267,16 @@ export async function getDashboardData(supabase: SupabaseClient, userId: string)
     const formSubmissions = submissionsByFormId[form.id] ?? [];
     const lastSubmissionAt = formSubmissions[0]?.created_at ?? null;
 
-    return {
+      return {
       id: form.id,
       title: form.title,
       description: form.description,
       isPublic: form.is_public,
       publicSlug: form.public_slug,
-      publicToken: form.qr_share_token,
+      qrShareToken: form.qr_share_token,
       expiresAt: form.expires_at,
       responseLimit: form.response_limit,
-      responseCount: formSubmissions.length,
+      responseCount: form.response_count,
       createdAt: form.created_at,
       updatedAt: form.updated_at,
       fieldCount: formFields.length,

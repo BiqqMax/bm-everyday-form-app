@@ -6,31 +6,21 @@ export type ShareableFormSummary = {
   description: string | null;
   isPublic: boolean;
   publicSlug: string;
-  publicToken: string;
   expiresAt: string | null;
   responseLimit: number | null;
   responseCount: number;
-  ownerDisplayName: string | null;
 };
 
-const DEFAULT_SLUG = "form";
-
-export function slugifyPublicSegment(value: string) {
-  const slug = value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-
-  return slug.length > 0 ? slug : DEFAULT_SLUG;
+export function buildPublicFormPath(publicSlug: string) {
+  return `/f/${publicSlug}`;
 }
 
-export function buildPublicFormPath(displayName: string, publicToken: string) {
-  return `/${slugifyPublicSegment(displayName)}/${publicToken}`;
+export function buildPublicFormUrl(origin: string, publicSlug: string) {
+  return `${origin.replace(/\/+$/g, "")}${buildPublicFormPath(publicSlug)}`;
 }
 
-export function buildPublicFormUrl(origin: string, displayName: string, publicToken: string) {
-  return `${origin.replace(/\/+$/g, "")}${buildPublicFormPath(displayName, publicToken)}`;
+export function getShareLinkPreview(publicSlug: string) {
+  return buildPublicFormPath(publicSlug);
 }
 
 export function getShareStatus(form: Pick<ShareableFormSummary, "isPublic" | "expiresAt" | "responseLimit" | "responseCount">, now = new Date()): ShareStatus {
@@ -75,10 +65,6 @@ export function getShareStatusTone(status: ShareStatus) {
     default:
       return "border-[var(--border)] bg-[var(--surface-subtle)] text-[var(--muted-foreground)]";
   }
-}
-
-export function getShareLinkPreview(displayName: string, token: string) {
-  return `/${slugifyPublicSegment(displayName)}/${token}`;
 }
 
 export function formatOptionalCount(value: number | null | undefined) {

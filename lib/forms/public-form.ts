@@ -27,7 +27,6 @@ type PublicFormRow = {
   description: string | null;
   is_public: boolean;
   public_slug: string;
-  qr_share_token: string;
   expires_at: string | null;
   response_limit: number | null;
   response_count: number;
@@ -54,16 +53,15 @@ function asStringArray(value: unknown): string[] {
   return value.map((item) => (typeof item === "string" ? item.trim() : "")).filter(Boolean);
 }
 
-export function getCanonicalPublicFormPath(ownerDisplayName: string | null, publicToken: string, fallbackTitle = "form") {
-  const segment = ownerDisplayName?.trim() || fallbackTitle;
-  return buildPublicFormPath(segment, publicToken);
+export function getCanonicalPublicFormPath(publicSlug: string) {
+  return buildPublicFormPath(publicSlug);
 }
 
-export async function getPublicFormDetails(supabase: SupabaseClient, publicToken: string): Promise<PublicFormDetails | null> {
+export async function getPublicFormDetails(supabase: SupabaseClient, publicSlug: string): Promise<PublicFormDetails | null> {
   const formResult = await supabase
     .from("forms")
-    .select("id,owner_id,title,description,is_public,public_slug,qr_share_token,expires_at,response_limit,response_count")
-    .eq("qr_share_token", publicToken)
+    .select("id,owner_id,title,description,is_public,public_slug,expires_at,response_limit,response_count")
+    .eq("public_slug", publicSlug)
     .maybeSingle();
 
   if (formResult.error) {
@@ -99,11 +97,9 @@ export async function getPublicFormDetails(supabase: SupabaseClient, publicToken
     description: form.description,
     isPublic: form.is_public,
     publicSlug: form.public_slug,
-    publicToken: form.qr_share_token,
     expiresAt: form.expires_at,
     responseLimit: form.response_limit,
     responseCount: form.response_count,
-    ownerDisplayName,
   };
 
   return {
@@ -117,7 +113,7 @@ export async function getPublicFormDetails(supabase: SupabaseClient, publicToken
       options: asStringArray(field.options),
       position: field.position,
     })),
-    publicPath: getCanonicalPublicFormPath(ownerDisplayName, form.qr_share_token, form.public_slug),
+    publicPath: buildPublicFormPath(form.public_slug),
     shareStatus: getShareStatus(summary),
   };
 }

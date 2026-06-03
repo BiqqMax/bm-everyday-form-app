@@ -22,7 +22,6 @@ type MobileTab = "home" | "forms" | "responses" | "settings";
 type FormVisibilityFilter = "all" | "public" | "private";
 type ShareTarget = {
   form: DashboardForm;
-  shareUrl: string;
 };
 
 type ToastTone = "success" | "error";
@@ -45,7 +44,7 @@ const createInitialActionState: CreateFormActionState = {
 
 type CreatedFormIdentity = {
   formId: string;
-  publicToken: string;
+  publicSlug: string;
 };
 
 type DashboardToastContextValue = {
@@ -887,7 +886,7 @@ function CreateFormModalContent({
           <CreateFormSuccessScreen
             title={title || "Untitled form"}
             formId={createdFormIdentity?.formId ?? ""}
-            publicToken={createdFormIdentity?.publicToken ?? ""}
+            publicSlug={createdFormIdentity?.publicSlug ?? ""}
             onManageForm={handleManageForm}
             onShareForm={handleShareForm}
             onCreateAnother={handleCreateAnother}
@@ -991,17 +990,17 @@ function CreateFormSubmissionStep({
   const successReportedRef = useRef(false);
 
   useEffect(() => {
-    if (state.status === "success") {
-      if (!successReportedRef.current) {
-        successReportedRef.current = true;
-        onCreateSuccess({
-          formId: state.formId,
-          publicToken: state.publicToken,
-        });
-      }
+      if (state.status === "success") {
+        if (!successReportedRef.current) {
+          successReportedRef.current = true;
+          onCreateSuccess({
+            formId: state.formId,
+            publicSlug: state.publicSlug,
+          });
+        }
 
-      return;
-    }
+        return;
+      }
 
     successReportedRef.current = false;
   }, [onCreateSuccess, state]);
@@ -1437,10 +1436,8 @@ export default function Dashboard({
   );
 
   const handleShareForm = (form: DashboardForm) => {
-    const origin = window.location.origin;
     setShareTarget({
       form,
-      shareUrl: buildPublicFormUrl(origin, displayName, form.publicToken),
     });
   };
 
@@ -1449,7 +1446,6 @@ export default function Dashboard({
       return;
     }
 
-    const origin = window.location.origin;
     setCreateFormOpen(false);
     setShareTarget({
       form: {
@@ -1457,8 +1453,7 @@ export default function Dashboard({
         title: "Untitled form",
         description: null,
         isPublic: true,
-        publicSlug: "",
-        publicToken: identity.publicToken,
+        publicSlug: identity.publicSlug,
         expiresAt: null,
         responseLimit: null,
         responseCount: 0,
@@ -1468,7 +1463,6 @@ export default function Dashboard({
         submissionCount: 0,
         lastSubmissionAt: null,
       },
-      shareUrl: buildPublicFormUrl(origin, displayName, identity.publicToken),
     });
   };
 
@@ -1540,7 +1534,7 @@ export default function Dashboard({
           open={Boolean(shareTarget)}
           onClose={() => setShareTarget(null)}
           formTitle={shareTarget?.form.title ?? ""}
-          shareUrl={shareTarget?.shareUrl ?? ""}
+          publicSlug={shareTarget?.form.publicSlug ?? ""}
           statusLabel={activeShareStatus ? getShareStatusLabel(activeShareStatus) : undefined}
           published={shareTarget?.form.isPublic ?? true}
         />

@@ -16,6 +16,7 @@ export type SettingsData = {
   sharing: {
     enableQrGeneration: boolean;
     autoGenerateShareLinks: boolean;
+    useDisplayNameInShareUrl: boolean;
   };
   notifications: {
     enableEmailAlerts: boolean;
@@ -40,6 +41,7 @@ type SettingsProfileRow = {
   default_publish_state: boolean | null;
   enable_qr_generation: boolean | null;
   auto_generate_share_links: boolean | null;
+  use_display_name_in_share_url: boolean | null;
   enable_email_alerts: boolean | null;
   allow_anonymous_submissions: boolean | null;
   restrict_multiple_submissions: boolean | null;
@@ -56,7 +58,7 @@ export async function getSettingsData(supabase: SupabaseClient, userId: string):
     supabase
       .from("profiles")
       .select(
-        "display_name,email,account_type,default_expiry_minutes,default_response_limit,default_publish_state,enable_qr_generation,auto_generate_share_links,enable_email_alerts,allow_anonymous_submissions,restrict_multiple_submissions,require_email_validation"
+        "display_name,email,account_type,default_expiry_minutes,default_response_limit,default_publish_state,enable_qr_generation,auto_generate_share_links,use_display_name_in_share_url,enable_email_alerts,allow_anonymous_submissions,restrict_multiple_submissions,require_email_validation"
       )
       .eq("id", userId)
       .maybeSingle(),
@@ -83,6 +85,7 @@ export async function getSettingsData(supabase: SupabaseClient, userId: string):
     sharing: {
       enableQrGeneration: profile?.enable_qr_generation ?? true,
       autoGenerateShareLinks: profile?.auto_generate_share_links ?? true,
+      useDisplayNameInShareUrl: profile?.use_display_name_in_share_url ?? false,
     },
     notifications: {
       enableEmailAlerts: profile?.enable_email_alerts ?? true,

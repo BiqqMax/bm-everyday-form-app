@@ -211,7 +211,16 @@ function SettingsForm({ settings }: SettingsPanelProps) {
             name="autoGenerateShareLinks"
             enabled={settings.sharing.autoGenerateShareLinks}
           />
-          <RowItem label="Preview format" value="/{name}/{token}" />
+          <EditableToggleRow
+            label="Include display name in share links"
+            hint="Use /{displayName}/{token} instead of /f/{token}."
+            name="useDisplayNameInShareUrl"
+            enabled={settings.sharing.useDisplayNameInShareUrl}
+          />
+          <RowItem
+            label="Preview format"
+            value={settings.sharing.useDisplayNameInShareUrl ? "/{displayName}/{token}" : "/f/{token}"}
+          />
         </div>
       </SectionCard>
 

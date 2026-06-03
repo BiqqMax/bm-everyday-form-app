@@ -54,7 +54,7 @@ type StepReviewProps = {
 type CreateFormSuccessScreenProps = {
   title: string;
   formId: string;
-  publicToken: string;
+  publicSlug: string;
   onManageForm: () => void;
   onShareForm: () => void;
   onCreateAnother: () => void;
@@ -831,7 +831,7 @@ export function StepReview({ title, description, isPublic, fields, validationErr
 export function CreateFormSuccessScreen({
   title,
   formId,
-  publicToken,
+  publicSlug,
   onManageForm,
   onShareForm,
   onCreateAnother,

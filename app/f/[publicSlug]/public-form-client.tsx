@@ -17,7 +17,7 @@ export type PublicFormView = {
   title: string;
   description: string;
   displayName: string;
-  publicToken: string;
+  publicSlug: string;
   fields: PublicFormField[];
   isPublished: boolean;
   expiresAt: string | null;
@@ -224,7 +224,7 @@ export function PublicFormClient({ form }: { form: PublicFormView }) {
       <div className="grid gap-3 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:grid-cols-3">
         <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] p-4">
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">Public path</p>
-          <p className="mt-2 break-words text-sm font-medium text-[var(--foreground)]">/{form.displayName}/{form.publicToken}</p>
+          <p className="mt-2 break-words text-sm font-medium text-[var(--foreground)]">/{form.displayName}/{form.publicSlug}</p>
         </div>
         <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] p-4">
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">Expiry</p>
@@ -240,7 +240,7 @@ export function PublicFormClient({ form }: { form: PublicFormView }) {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <input type="hidden" name="formId" value={form.id} />
-        <input type="hidden" name="publicToken" value={form.publicToken} />
+        <input type="hidden" name="publicSlug" value={form.publicSlug} />
 
         <div className="grid gap-4">
           {form.fields

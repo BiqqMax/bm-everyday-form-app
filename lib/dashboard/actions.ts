@@ -18,7 +18,7 @@ export type CreateFormActionState =
       status: "success";
       message: string;
       formId: string;
-      publicToken: string;
+      publicSlug: string;
     };
 
 function getString(formData: FormData, key: string) {
@@ -103,7 +103,9 @@ function parseFields(formData: FormData) {
         label: field.label.trim(),
         required: field.required,
         options: Array.isArray(field.options)
-          ? field.options.filter((option): option is string => typeof option === "string" && option.trim().length > 0).map((option) => option.trim())
+          ? field.options
+              .filter((option): option is string => typeof option === "string" && option.trim().length > 0)
+              .map((option) => option.trim())
           : undefined,
       }));
   } catch {
@@ -116,9 +118,7 @@ async function syncFormFields(
   formId: string,
   fields: CreateFormFieldPayload[],
 ) {
-  const [existingFieldsResult] = await Promise.all([
-    supabase.from("form_fields").select("id").eq("form_id", formId),
-  ]);
+  const [existingFieldsResult] = await Promise.all([supabase.from("form_fields").select("id").eq("form_id", formId)]);
 
   if (existingFieldsResult.error) {
     return existingFieldsResult.error;
@@ -179,7 +179,7 @@ export async function createFormAction(_: CreateFormActionState, formData: FormD
         is_public: isPublic,
         public_slug: buildPublicSlug(title),
       })
-      .select("id,qr_share_token")
+      .select("id,public_slug")
       .single();
 
     if (error) {
@@ -212,7 +212,7 @@ export async function createFormAction(_: CreateFormActionState, formData: FormD
       status: "success",
       message: "Form created.",
       formId: createdForm.id,
-      publicToken: createdForm.qr_share_token,
+      publicSlug: createdForm.public_slug,
     };
   } catch (error) {
     return {
@@ -331,11 +331,7 @@ export async function updateFormLifecycleAction(_: DashboardActionState, formDat
       return { status: "error", message: "Choose a lifecycle change to save." };
     }
 
-    const { error } = await supabase
-      .from("forms")
-      .update(updates)
-      .eq("id", formId)
-      .eq("owner_id", user.id);
+    const { error } = await supabase.from("forms").update(updates).eq("id", formId).eq("owner_id", user.id);
 
     if (error) {
       return { status: "error", message: getFriendlyActionMessage(error) };

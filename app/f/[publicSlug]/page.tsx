@@ -8,8 +8,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 type PageParams = {
-  displayName: string;
-  publicToken: string;
+  publicSlug: string;
 };
 
 function safeDecode(value: string) {
@@ -20,10 +19,7 @@ function safeDecode(value: string) {
   }
 }
 
-function toPublicFormView(
-  details: Awaited<ReturnType<typeof getPublicFormDetails>>,
-  fallbackDisplayName: string
-): PublicFormView | null {
+function toPublicFormView(details: Awaited<ReturnType<typeof getPublicFormDetails>>): PublicFormView | null {
   if (!details) {
     return null;
   }
@@ -32,8 +28,8 @@ function toPublicFormView(
     id: details.id,
     title: details.title,
     description: details.description ?? "",
-    displayName: details.ownerDisplayName ?? fallbackDisplayName,
-    publicToken: details.publicToken,
+    displayName: details.ownerDisplayName ?? "",
+    publicSlug: details.publicSlug,
     fields: details.fields,
     isPublished: details.isPublic,
     expiresAt: details.expiresAt,
@@ -78,20 +74,20 @@ function statusMessage(form: PublicFormView | null) {
   return null;
 }
 
-async function loadPublicForm(displayName: string, publicToken: string): Promise<PublicFormView | null> {
+async function loadPublicForm(publicSlug: string): Promise<PublicFormView | null> {
   const supabase = await createClient();
 
   try {
-    const details = await getPublicFormDetails(supabase, publicToken);
-    return toPublicFormView(details, displayName);
+    const details = await getPublicFormDetails(supabase, publicSlug);
+    return toPublicFormView(details);
   } catch {
     return null;
   }
 }
 
 export async function generateMetadata({ params }: { params: Promise<PageParams> }): Promise<Metadata> {
-  const { displayName, publicToken } = await params;
-  const form = await loadPublicForm(safeDecode(displayName), safeDecode(publicToken));
+  const { publicSlug } = await params;
+  const form = await loadPublicForm(safeDecode(publicSlug));
 
   return {
     title: form?.title ? `${form.title}` : "Public form",
@@ -101,9 +97,8 @@ export async function generateMetadata({ params }: { params: Promise<PageParams>
 
 export default async function PublicFormPage({ params }: { params: Promise<PageParams> }) {
   const resolvedParams = await params;
-  const displayName = safeDecode(resolvedParams.displayName);
-  const publicToken = safeDecode(resolvedParams.publicToken);
-  const form = await loadPublicForm(displayName, publicToken);
+  const publicSlug = safeDecode(resolvedParams.publicSlug);
+  const form = await loadPublicForm(publicSlug);
   const status = statusMessage(form);
 
   return (

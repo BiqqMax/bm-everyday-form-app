@@ -60,6 +60,7 @@ export async function updateSettingsAction(formData: FormData): Promise<Settings
       default_publish_state: getBoolean(formData, "defaultPublishState"),
       enable_qr_generation: getBoolean(formData, "enableQrGeneration"),
       auto_generate_share_links: getBoolean(formData, "autoGenerateShareLinks"),
+      use_display_name_in_share_url: getBoolean(formData, "useDisplayNameInShareUrl"),
       enable_email_alerts: getBoolean(formData, "enableEmailAlerts"),
       allow_anonymous_submissions: getBoolean(formData, "allowAnonymousSubmissions"),
       restrict_multiple_submissions: getBoolean(formData, "restrictMultipleSubmissions"),
