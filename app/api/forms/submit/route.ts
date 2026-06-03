@@ -42,6 +42,38 @@ function getFriendlyMessage(error: unknown, fallback: string) {
   return message && message !== "An unexpected error occurred." ? message : fallback;
 }
 
+function parseSubmissionBody(formData: FormData) {
+  const body: Record<string, string | string[]> = {};
+
+  for (const [key, value] of formData.entries()) {
+    const normalizedValue = typeof value === "string" ? value.trim() : `[${value.name}:${value.type}:${value.size}]`;
+
+    if (key in body) {
+      const currentValue = body[key];
+      body[key] = Array.isArray(currentValue) ? [...currentValue, normalizedValue] : [currentValue, normalizedValue];
+      continue;
+    }
+
+    body[key] = normalizedValue;
+  }
+
+  return body;
+}
+
+function getBodyValues(body: Record<string, string | string[]>, key: string) {
+  const value = body[key];
+
+  if (Array.isArray(value)) {
+    return value;
+  }
+
+  if (typeof value === "string" && value.length > 0) {
+    return [value];
+  }
+
+  return [];
+}
+
 async function loadPublicFormByToken(supabase: Awaited<ReturnType<typeof createClient>>, qrShareToken: string) {
   console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=loadPublicFormByToken query=form_lookup table=forms qrShareToken");
   const form = await getFormByPublicToken(supabase, qrShareToken);
@@ -68,18 +100,21 @@ async function loadFormFields(supabase: Awaited<ReturnType<typeof createClient>>
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
-    const formId = getFormString(formData, "formId");
-    const publicToken = getFormString(formData, "publicToken");
-    const token = publicToken;
+    const body = parseSubmissionBody(formData);
+    console.log("[SUBMIT][BODY]", body);
 
-    if (!formId || !token) {
+    const publicToken = getFormString(formData, "publicToken");
+    console.log("[SUBMIT][TOKEN]", publicToken);
+
+    if (!publicToken) {
       return NextResponse.json({ message: "This form could not be submitted." }, { status: 400 });
     }
 
     const supabase = await createClient();
-    const form = await loadPublicFormByToken(supabase, token);
+    const form = await loadPublicFormByToken(supabase, publicToken);
+    console.log("[SUBMIT][FORM_RESOLVED]", form);
 
-    if (!form || form.id !== formId) {
+    if (!form) {
       return NextResponse.json({ message: "This form link is invalid or unavailable." }, { status: 404 });
     }
 
@@ -103,14 +138,33 @@ export async function POST(request: NextRequest) {
     }
 
     const fields = await loadFormFields(supabase, form.id);
+    console.log("[DB_FIELDS]", fields.map((field) => ({ id: field.id, label: field.label })));
+
+    const validFieldIds = fields.map((field) => field.id);
+    const clientFieldKeys = Object.keys(body).filter((key) => key.startsWith("field_"));
+    console.log("[CLIENT_FIELD_KEYS]", clientFieldKeys);
+
+    const invalidFieldIds = clientFieldKeys
+      .map((key) => key.replace(/^field_/, "").replace(/\[\]$/, ""))
+      .filter((fieldId) => fieldId.length > 0 && !validFieldIds.includes(fieldId));
+
+    if (invalidFieldIds.length > 0) {
+      console.error("[FIELD_MISMATCH]", {
+        invalidFieldIds,
+        validFieldIds,
+      });
+      throw new Error("Field mapping mismatch.");
+    }
+
     const submissionPayload = fields.map((field) => {
-      const singleValue = getFormString(formData, `field_${field.id}`);
-      const multiValues = formData.getAll(`field_${field.id}[]`).filter((value): value is string => typeof value === "string");
-      const rawValue = field.field_type === "checkbox" ? multiValues : singleValue ? [singleValue] : [];
+      const singleValue = getBodyValues(body, `field_${field.id}`)[0] ?? "";
+      const checkboxValues = getBodyValues(body, `field_${field.id}[]`);
+      const rawValue = field.field_type === "checkbox" ? checkboxValues : singleValue ? [singleValue] : [];
+      const value = normalizeFieldValue(field.field_type, rawValue.length ? rawValue : checkboxValues);
 
       return {
         field,
-        value: normalizeFieldValue(field.field_type, rawValue.length ? rawValue : multiValues),
+        value,
       };
     });
 
@@ -147,12 +201,18 @@ export async function POST(request: NextRequest) {
       .map(({ field, value }) => ({
         submission_id: submissionId,
         form_field_id: field.id,
-        answer_value: value,
+        answer_value: Array.isArray(value) ? value.map((entry) => entry.trim()).filter(Boolean) : value.trim(),
       }));
+
+    console.log("[ANSWERS_INSERT][PAYLOAD]", answersToInsert);
+    console.log("[ANSWERS_FINAL_PAYLOAD]", answersToInsert);
+    console.log("[MAPPED_ANSWERS]", answersToInsert);
 
     if (answersToInsert.length > 0) {
       console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=POST query=submission_answers_insert table=submission_answers");
-      const { error: answersError } = await supabase.from("submission_answers").insert(answersToInsert);
+      const result = await supabase.from("submission_answers").insert(answersToInsert);
+      console.log("[ANSWERS_DB_RESULT]", result);
+      const { error: answersError } = result;
       console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=POST query=submission_answers_insert table=submission_answers success");
 
       if (answersError) {
@@ -166,24 +226,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=POST query=forms_increment_response_count table=forms formId qrShareToken");
-    const responseCountUpdate = await supabase
-      .from("forms")
-      .update({ response_count: form.response_count + 1 })
-      .eq("id", form.id)
-      .eq("qr_share_token", token);
-    console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=POST query=forms_increment_response_count table=forms success");
-
-    if (responseCountUpdate.error) {
-      console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=POST query=submission_cleanup table=submission_answers table=submissions");
-      await supabase.from("submission_answers").delete().eq("submission_id", submissionId);
-      await supabase.from("submissions").delete().eq("id", submissionId);
-      console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=POST query=submission_cleanup table=submission_answers table=submissions success");
-      return NextResponse.json(
-        { message: getFriendlyMessage(responseCountUpdate.error, "We couldn't update the form response count.") },
-        { status: 400 }
-      );
-    }
+    console.log("[SUBMIT][END_OF_INSERTS_REACHED]");
+    console.log("[SUBMIT][ABOUT_TO_RETURN_SUCCESS]");
+    console.log("[SUBMIT][ABOUT_TO_RETURN_400_CHECKS]");
 
     return NextResponse.json({ message: "Response submitted successfully." }, { status: 200 });
   } catch (error) {
