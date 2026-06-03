@@ -5,22 +5,37 @@ export type ShareableFormSummary = {
   title: string;
   description: string | null;
   isPublic: boolean;
-  publicSlug: string;
+  qrShareToken: string;
   expiresAt: string | null;
   responseLimit: number | null;
   responseCount: number;
 };
 
-export function buildPublicFormPath(publicSlug: string) {
-  return `/f/${publicSlug}`;
+export function buildPublicFormPath(qrShareToken: string) {
+  return `/f/${qrShareToken}`;
 }
 
-export function buildPublicFormUrl(origin: string, publicSlug: string) {
-  return `${origin.replace(/\/+$/g, "")}${buildPublicFormPath(publicSlug)}`;
+export function buildPublicFormVanityPath(displayName: string, qrShareToken: string) {
+  const trimmedDisplayName = displayName.trim();
+
+  if (!trimmedDisplayName) {
+    return buildPublicFormPath(qrShareToken);
+  }
+
+  const safeDisplayName = encodeURIComponent(trimmedDisplayName);
+  return `/${safeDisplayName}/${qrShareToken}`;
 }
 
-export function getShareLinkPreview(publicSlug: string) {
-  return buildPublicFormPath(publicSlug);
+export function buildPublicFormUrl(origin: string, qrShareToken: string) {
+  return `${origin.replace(/\/+$/g, "")}${buildPublicFormPath(qrShareToken)}`;
+}
+
+export function buildPublicFormVanityUrl(origin: string, displayName: string, qrShareToken: string) {
+  return `${origin.replace(/\/+$/g, "")}${buildPublicFormVanityPath(displayName, qrShareToken)}`;
+}
+
+export function getShareLinkPreview(qrShareToken: string) {
+  return buildPublicFormPath(qrShareToken);
 }
 
 export function getShareStatus(form: Pick<ShareableFormSummary, "isPublic" | "expiresAt" | "responseLimit" | "responseCount">, now = new Date()): ShareStatus {

@@ -11,7 +11,7 @@ export interface FormField {
 export interface Form {
   id: string;
   title: string;
-  description?: string;
+  description: string | null;
   fields: FormField[];
   published: boolean;
   createdAt: string; // ISO date

@@ -1,14 +1,20 @@
 import type { Metadata } from "next";
 
 import { createClient } from "../../../lib/supabase/server";
-import { getPublicFormDetails } from "../../../lib/forms/public-form";
+import { getFormByPublicToken } from "../../../lib/forms/public-resolver";
 import { PublicFormClient, type PublicFormView } from "./public-form-client";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 type PageParams = {
-  publicSlug: string;
+  token: string;
+};
+
+type PublicFormRow = NonNullable<Awaited<ReturnType<typeof getFormByPublicToken>>>;
+type PublicFormField = PublicFormView["fields"][number];
+type ProfileRow = {
+  display_name: string | null;
 };
 
 function safeDecode(value: string) {
@@ -19,22 +25,22 @@ function safeDecode(value: string) {
   }
 }
 
-function toPublicFormView(details: Awaited<ReturnType<typeof getPublicFormDetails>>): PublicFormView | null {
-  if (!details) {
-    return null;
-  }
-
+function toPublicFormView(
+  form: PublicFormRow,
+  ownerDisplayName: string | null,
+  fields: PublicFormField[],
+): PublicFormView {
   return {
-    id: details.id,
-    title: details.title,
-    description: details.description ?? "",
-    displayName: details.ownerDisplayName ?? "",
-    publicSlug: details.publicSlug,
-    fields: details.fields,
-    isPublished: details.isPublic,
-    expiresAt: details.expiresAt,
-    responseLimit: details.responseLimit,
-    responseCount: details.responseCount,
+    id: form.id,
+    title: form.title,
+    description: form.description,
+    displayName: ownerDisplayName ?? "",
+    qrShareToken: form.qr_share_token,
+    fields,
+    isPublished: form.is_public,
+    expiresAt: form.expires_at,
+    responseLimit: form.response_limit,
+    responseCount: form.response_count,
   };
 }
 
@@ -74,20 +80,52 @@ function statusMessage(form: PublicFormView | null) {
   return null;
 }
 
-async function loadPublicForm(publicSlug: string): Promise<PublicFormView | null> {
+async function loadPublicForm(token: string): Promise<PublicFormView | null> {
   const supabase = await createClient();
 
   try {
-    const details = await getPublicFormDetails(supabase, publicSlug);
-    return toPublicFormView(details);
+    const form = await getFormByPublicToken(supabase, token);
+
+    if (!form) {
+      return null;
+    }
+
+    const [profileResult, fieldsResult] = await Promise.all([
+      supabase.from("profiles").select("display_name").eq("id", form.owner_id).maybeSingle(),
+      supabase
+        .from("form_fields")
+        .select("id,label,field_type,is_required,options,position")
+        .eq("form_id", form.id)
+        .order("position", { ascending: true }),
+    ]);
+
+    if (profileResult.error) {
+      throw profileResult.error;
+    }
+
+    if (fieldsResult.error) {
+      throw fieldsResult.error;
+    }
+
+    const profile = profileResult.data as ProfileRow | null;
+    const fields = (fieldsResult.data ?? []).map((field) => ({
+      id: field.id,
+      label: field.label,
+      type: field.field_type,
+      required: field.is_required,
+      options: Array.isArray(field.options) ? field.options.filter((option): option is string => typeof option === "string") : [],
+      position: field.position,
+    }));
+
+    return toPublicFormView(form, profile?.display_name ?? null, fields);
   } catch {
     return null;
   }
 }
 
 export async function generateMetadata({ params }: { params: Promise<PageParams> }): Promise<Metadata> {
-  const { publicSlug } = await params;
-  const form = await loadPublicForm(safeDecode(publicSlug));
+  const { token } = await params;
+  const form = await loadPublicForm(safeDecode(token));
 
   return {
     title: form?.title ? `${form.title}` : "Public form",
@@ -97,8 +135,8 @@ export async function generateMetadata({ params }: { params: Promise<PageParams>
 
 export default async function PublicFormPage({ params }: { params: Promise<PageParams> }) {
   const resolvedParams = await params;
-  const publicSlug = safeDecode(resolvedParams.publicSlug);
-  const form = await loadPublicForm(publicSlug);
+  const token = safeDecode(resolvedParams.token);
+  const form = await loadPublicForm(token);
   const status = statusMessage(form);
 
   return (

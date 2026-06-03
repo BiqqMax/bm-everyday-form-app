@@ -10,7 +10,7 @@ import Modal from "../ui/Modal";
 import type { CreateFormActionState, DashboardActionState } from "../../lib/dashboard/actions";
 import { createFormAction, deleteFormAction, updateFormAction, updateFormLifecycleAction } from "../../lib/dashboard/actions";
 import { CreateFormSuccessScreen, StepBasicInfo, StepFieldBuilder, StepReview, type CreateFormWizardField } from "./CreateFormModalSteps";
-import { buildPublicFormUrl, getShareStatus, getShareStatusLabel } from "../../lib/forms/public";
+import { getShareStatus, getShareStatusLabel } from "../../lib/forms/public";
 import type { DashboardData, DashboardForm, DashboardSubmission } from "../../lib/dashboard/dashboard";
 import type { SettingsData } from "../../lib/settings/data";
 import ShareModal from "./ShareModal";
@@ -44,7 +44,7 @@ const createInitialActionState: CreateFormActionState = {
 
 type CreatedFormIdentity = {
   formId: string;
-  publicSlug: string;
+  qr_share_token: string;
 };
 
 type DashboardToastContextValue = {
@@ -886,7 +886,7 @@ function CreateFormModalContent({
           <CreateFormSuccessScreen
             title={title || "Untitled form"}
             formId={createdFormIdentity?.formId ?? ""}
-            publicSlug={createdFormIdentity?.publicSlug ?? ""}
+            qr_share_token={createdFormIdentity?.qr_share_token ?? ""}
             onManageForm={handleManageForm}
             onShareForm={handleShareForm}
             onCreateAnother={handleCreateAnother}
@@ -990,17 +990,17 @@ function CreateFormSubmissionStep({
   const successReportedRef = useRef(false);
 
   useEffect(() => {
-      if (state.status === "success") {
-        if (!successReportedRef.current) {
-          successReportedRef.current = true;
-          onCreateSuccess({
-            formId: state.formId,
-            publicSlug: state.publicSlug,
-          });
-        }
-
-        return;
+    if (state.status === "success") {
+      if (!successReportedRef.current) {
+        successReportedRef.current = true;
+        onCreateSuccess({
+          formId: state.formId,
+          qr_share_token: state.qr_share_token,
+        });
       }
+
+      return;
+    }
 
     successReportedRef.current = false;
   }, [onCreateSuccess, state]);
@@ -1453,7 +1453,6 @@ export default function Dashboard({
         title: "Untitled form",
         description: null,
         isPublic: true,
-        publicSlug: identity.publicSlug,
         expiresAt: null,
         responseLimit: null,
         responseCount: 0,
@@ -1461,6 +1460,7 @@ export default function Dashboard({
         updatedAt: "",
         fieldCount: 0,
         submissionCount: 0,
+        qrShareToken: identity.qr_share_token,
         lastSubmissionAt: null,
       },
     });
@@ -1534,7 +1534,8 @@ export default function Dashboard({
           open={Boolean(shareTarget)}
           onClose={() => setShareTarget(null)}
           formTitle={shareTarget?.form.title ?? ""}
-          publicSlug={shareTarget?.form.publicSlug ?? ""}
+          qr_share_token={shareTarget?.form.qrShareToken ?? ""}
+          displayName={displayName}
           statusLabel={activeShareStatus ? getShareStatusLabel(activeShareStatus) : undefined}
           published={shareTarget?.form.isPublic ?? true}
         />

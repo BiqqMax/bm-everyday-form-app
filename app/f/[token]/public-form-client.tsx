@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode, FormEvent } from "react";
+import type { FormEvent, ReactNode } from "react";
 import { useMemo, useState } from "react";
 
 type PublicFormField = {
@@ -15,9 +15,9 @@ type PublicFormField = {
 export type PublicFormView = {
   id: string;
   title: string;
-  description: string;
+  description: string | null;
   displayName: string;
-  publicSlug: string;
+  qrShareToken: string;
   fields: PublicFormField[];
   isPublished: boolean;
   expiresAt: string | null;
@@ -77,11 +77,7 @@ function SubmissionStatus({ state }: { state: SubmissionState }) {
         ? "border-[rgba(15,93,70,0.18)] bg-[rgba(15,93,70,0.08)] text-[var(--accent)]"
         : "border-[var(--border)] bg-[var(--surface-subtle)] text-[var(--muted-foreground)]";
 
-  return (
-    <div className={joinClasses("rounded-2xl border px-4 py-3 text-sm font-medium", tone)}>
-      {state.message}
-    </div>
-  );
+  return <div className={joinClasses("rounded-2xl border px-4 py-3 text-sm font-medium", tone)}>{state.message}</div>;
 }
 
 function FieldShell({
@@ -136,7 +132,13 @@ function renderField(field: PublicFormField) {
         <div className="grid gap-2">
           {field.options.map((option) => (
             <label key={option} className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--foreground)]">
-              <input type="radio" name={fieldName(field.id)} value={option} required={field.required} className="h-4 w-4 text-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--ring)]" />
+              <input
+                type="radio"
+                name={fieldName(field.id)}
+                value={option}
+                required={field.required}
+                className="h-4 w-4 text-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+              />
               <span>{option}</span>
             </label>
           ))}
@@ -147,7 +149,12 @@ function renderField(field: PublicFormField) {
         <div className="grid gap-2">
           {field.options.map((option) => (
             <label key={option} className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--foreground)]">
-              <input type="checkbox" name={checkboxGroupName(field.id)} value={option} className="h-4 w-4 rounded border-[var(--border)] text-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--ring)]" />
+              <input
+                type="checkbox"
+                name={checkboxGroupName(field.id)}
+                value={option}
+                className="h-4 w-4 rounded border-[var(--border)] text-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+              />
               <span>{option}</span>
             </label>
           ))}
@@ -224,7 +231,8 @@ export function PublicFormClient({ form }: { form: PublicFormView }) {
       <div className="grid gap-3 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:grid-cols-3">
         <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] p-4">
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">Public path</p>
-          <p className="mt-2 break-words text-sm font-medium text-[var(--foreground)]">/{form.displayName}/{form.publicSlug}</p>
+          <p className="mt-2 break-words text-sm font-medium text-[var(--foreground)]">/f/{form.qrShareToken}</p>
+          {form.displayName ? <p className="mt-2 break-words text-xs text-[var(--muted-foreground)]">Shared by {form.displayName}</p> : null}
         </div>
         <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] p-4">
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">Expiry</p>
@@ -239,8 +247,7 @@ export function PublicFormClient({ form }: { form: PublicFormView }) {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <input type="hidden" name="formId" value={form.id} />
-        <input type="hidden" name="publicSlug" value={form.publicSlug} />
+        <input type="hidden" name="publicToken" value={form.qrShareToken} />
 
         <div className="grid gap-4">
           {form.fields

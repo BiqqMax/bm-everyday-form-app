@@ -54,7 +54,7 @@ type StepReviewProps = {
 type CreateFormSuccessScreenProps = {
   title: string;
   formId: string;
-  publicSlug: string;
+  qr_share_token: string;
   onManageForm: () => void;
   onShareForm: () => void;
   onCreateAnother: () => void;
@@ -489,42 +489,42 @@ function FieldTypeDropdown({
 
       {isOpen && position
         ? createPortal(
-            <div
-              ref={menuRef}
-              id={`${fieldId}-field-type-menu`}
-              role="listbox"
-              tabIndex={-1}
-              aria-activedescendant={`${fieldId}-field-type-option-${FIELD_TYPES[highlightedIndex]?.value ?? FIELD_TYPES[0].value}`}
-              onKeyDown={handleKeyDown}
-              className="fixed z-[70] overflow-auto rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-1 shadow-[0_18px_40px_rgba(15,23,42,0.12)] outline-none"
-              style={{
-                top: position.top,
-                left: position.left,
-                width: position.width,
-                maxHeight: position.maxHeight,
-              }}
-            >
-              {FIELD_TYPES.map((option, index) => (
-                <button
-                  key={option.value}
-                  id={`${fieldId}-field-type-option-${option.value}`}
-                  type="button"
-                  role="option"
-                  aria-selected={value === option.value}
-                  onMouseEnter={() => setHighlightedIndex(index)}
-                  onClick={() => selectType(option.value)}
-                  className={joinClasses(
-                    "flex w-full items-center rounded-[12px] px-3 py-2.5 text-left text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--surface-subtle)]",
-                    highlightedIndex === index && "bg-[var(--surface-subtle)]",
-                    value === option.value && "text-[var(--accent)]"
-                  )}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>,
-            document.body
-          )
+          <div
+            ref={menuRef}
+            id={`${fieldId}-field-type-menu`}
+            role="listbox"
+            tabIndex={-1}
+            aria-activedescendant={`${fieldId}-field-type-option-${FIELD_TYPES[highlightedIndex]?.value ?? FIELD_TYPES[0].value}`}
+            onKeyDown={handleKeyDown}
+            className="fixed z-[70] overflow-auto rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-1 shadow-[0_18px_40px_rgba(15,23,42,0.12)] outline-none"
+            style={{
+              top: position.top,
+              left: position.left,
+              width: position.width,
+              maxHeight: position.maxHeight,
+            }}
+          >
+            {FIELD_TYPES.map((option, index) => (
+              <button
+                key={option.value}
+                id={`${fieldId}-field-type-option-${option.value}`}
+                type="button"
+                role="option"
+                aria-selected={value === option.value}
+                onMouseEnter={() => setHighlightedIndex(index)}
+                onClick={() => selectType(option.value)}
+                className={joinClasses(
+                  "flex w-full items-center rounded-[12px] px-3 py-2.5 text-left text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--surface-subtle)]",
+                  highlightedIndex === index && "bg-[var(--surface-subtle)]",
+                  value === option.value && "text-[var(--accent)]"
+                )}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>,
+          document.body
+        )
         : null}
     </div>
   );
@@ -831,21 +831,21 @@ export function StepReview({ title, description, isPublic, fields, validationErr
 export function CreateFormSuccessScreen({
   title,
   formId,
-  publicSlug,
+  qr_share_token,
   onManageForm,
   onShareForm,
   onCreateAnother,
 }: CreateFormSuccessScreenProps) {
   return (
     <Card className="border-[var(--border)] bg-[var(--surface)] p-4 shadow-none">
-      <div className="w-full max-w-md space-y-4 text-center">
+      <div className="w-full max-w-md space-y-6 text-center">
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-[rgba(15,93,70,0.16)] bg-[rgba(15,93,70,0.08)] text-[var(--accent)]">
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M20 6 9 17l-5-5" />
           </svg>
         </div>
 
-        <div className="space-y-1">
+        <div className="space-y-2 pt-1">
           <h3 className="text-xl font-semibold tracking-tight text-[var(--foreground)]">Form created</h3>
           <p className="text-sm leading-5 text-[var(--muted-foreground)]">{title} is ready to receive responses.</p>
         </div>

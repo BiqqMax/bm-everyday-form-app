@@ -3,13 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 
-import { buildPublicFormUrl } from "../../lib/forms/public";
+import { buildPublicFormUrl, buildPublicFormVanityUrl } from "../../lib/forms/public";
 
 export interface ShareModalProps {
   open: boolean;
   onClose: () => void;
   formTitle: string;
-  publicSlug: string;
+  qr_share_token: string;
+  displayName?: string;
   statusLabel?: string;
   published?: boolean;
 }
@@ -66,11 +67,12 @@ export default function ShareModal({
   open,
   onClose,
   formTitle,
-  publicSlug,
+  qr_share_token,
+  displayName,
   statusLabel,
   published = true,
 }: ShareModalProps) {
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<"canonical" | "vanity" | null>(null);
   const [origin, setOrigin] = useState("");
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
   const [qrError, setQrError] = useState<string>("");
@@ -106,16 +108,24 @@ export default function ShareModal({
     };
   }, [open, onClose]);
 
-  const shareUrl = useMemo(() => {
-    if (!origin || !publicSlug) {
+  const canonicalUrl = useMemo(() => {
+    if (!origin || !qr_share_token) {
       return "";
     }
 
-    return buildPublicFormUrl(origin, publicSlug);
-  }, [origin, publicSlug]);
+    return buildPublicFormUrl(origin, qr_share_token);
+  }, [origin, qr_share_token]);
+
+  const vanityUrl = useMemo(() => {
+    if (!origin || !qr_share_token || !displayName) {
+      return "";
+    }
+
+    return buildPublicFormVanityUrl(origin, displayName, qr_share_token);
+  }, [displayName, origin, qr_share_token]);
 
   useEffect(() => {
-    if (!open || !shareUrl || tone === "draft") {
+    if (!open || !canonicalUrl || tone === "draft") {
       setQrDataUrl("");
       setQrError("");
       return;
@@ -124,7 +134,7 @@ export default function ShareModal({
     let active = true;
     setQrError("");
 
-    QRCode.toDataURL(shareUrl, {
+    QRCode.toDataURL(canonicalUrl, {
       margin: 1,
       width: 320,
       errorCorrectionLevel: "M",
@@ -148,28 +158,30 @@ export default function ShareModal({
     return () => {
       active = false;
     };
-  }, [open, shareUrl, tone]);
+  }, [canonicalUrl, open, tone]);
 
   useEffect(() => {
     if (!copied) {
       return;
     }
 
-    const timeout = window.setTimeout(() => setCopied(false), 1800);
+    const timeout = window.setTimeout(() => setCopied(null), 1800);
     return () => window.clearTimeout(timeout);
   }, [copied]);
 
   const fileName = useMemo(() => `${slugifyFileName(formTitle)}-qr.png`, [formTitle]);
-  const canShare = Boolean(shareUrl) && tone !== "draft";
+  const canShare = Boolean(canonicalUrl) && tone !== "draft";
 
-  const handleCopy = async () => {
-    if (!canShare) return;
+  const handleCopy = async (kind: "canonical" | "vanity") => {
+    const value = kind === "canonical" ? canonicalUrl : vanityUrl;
+
+    if (!value || !canShare) return;
 
     try {
-      await navigator.clipboard.writeText(shareUrl);
-      setCopied(true);
+      await navigator.clipboard.writeText(value);
+      setCopied(kind);
     } catch {
-      setCopied(false);
+      setCopied(null);
     }
   };
 
@@ -236,34 +248,57 @@ export default function ShareModal({
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
             <div className="space-y-4">
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <label htmlFor="share-url" className="block text-sm font-medium text-slate-700">
-                    Public link
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <label htmlFor="canonical-url" className="block text-sm font-medium text-slate-700">
+                    Canonical link
                   </label>
                   <button
                     type="button"
-                    onClick={handleCopy}
+                    onClick={() => handleCopy("canonical")}
                     disabled={!canShare}
                     className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-900 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {copied ? "Copied" : "Copy"}
+                    {copied === "canonical" ? "Copied" : "Copy"}
                   </button>
                 </div>
 
                 <input
-                  id="share-url"
+                  id="canonical-url"
                   readOnly
-                  value={shareUrl}
+                  value={canonicalUrl}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                />
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <label htmlFor="vanity-url" className="block text-sm font-medium text-slate-700">
+                    Vanity link
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => handleCopy("vanity")}
+                    disabled={!canShare}
+                    className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-900 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {copied === "vanity" ? "Copied" : "Copy"}
+                  </button>
+                </div>
+
+                <input
+                  id="vanity-url"
+                  readOnly
+                  value={vanityUrl}
                   className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
                 />
 
-                <p className="mt-2 text-xs leading-5 text-slate-500">Anyone with this link can open the published form.</p>
+                <p className="mt-2 text-xs leading-5 text-slate-500">Both links open the same form. The display name is cosmetic only.</p>
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-white p-4">
                 <h3 className="text-sm font-medium text-slate-900">What this link does</h3>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Use the public URL to collect responses. The QR code matches the same URL exactly.
+                  Use either public URL to collect responses. The QR code matches the canonical token URL exactly.
                 </p>
               </div>
             </div>

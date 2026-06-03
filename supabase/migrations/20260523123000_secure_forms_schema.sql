@@ -116,17 +116,11 @@ create table if not exists public.forms (
   title text not null,
   description text,
   is_public boolean not null default false,
-  public_slug text not null,
   qr_share_token uuid not null default gen_random_uuid(),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint forms_title_not_blank check (length(trim(both from title)) > 0),
-  constraint forms_public_slug_format check (
-    public_slug = lower(public_slug)
-    and public_slug ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'
-  ),
   constraint forms_description_not_blank check (description is null or length(trim(both from description)) > 0),
-  constraint forms_public_slug_unique unique (public_slug),
   constraint forms_qr_share_token_unique unique (qr_share_token)
 );
 

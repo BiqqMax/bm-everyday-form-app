@@ -1,8 +1,11 @@
 "use server";
 
+console.log("[ACTIONS_FILE_LOADED] createFormAction module imported");
+
 import { revalidatePath } from "next/cache";
 import { getFriendlyActionMessage } from "../utils/friendly-error";
 import { getServerSupabaseClient } from "../supabase/server";
+import { generateUniqueShortToken } from "../forms/token";
 
 export type DashboardActionState = {
   status: "idle" | "success" | "error";
@@ -18,7 +21,7 @@ export type CreateFormActionState =
       status: "success";
       message: string;
       formId: string;
-      publicSlug: string;
+      qr_share_token: string;
     };
 
 function getString(formData: FormData, key: string) {
@@ -36,18 +39,6 @@ function getOptionalString(formData: FormData, key: string) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function slugify(value: string) {
-  const slug = value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-
-  return slug.length > 0 ? slug : "form";
-}
-
-function buildPublicSlug(title: string) {
-  return `${slugify(title)}-${crypto.randomUUID().slice(0, 8)}`;
-}
 
 async function getAuthenticatedUser() {
   const supabase = await getServerSupabaseClient();
@@ -159,42 +150,100 @@ async function syncFormFields(
 }
 
 export async function createFormAction(_: CreateFormActionState, formData: FormData): Promise<CreateFormActionState> {
+  console.log("[CREATE_FORM_ACTION][ENTERED]");
+
   try {
-    const title = getString(formData, "title");
-    const description = getString(formData, "description");
+    const title = getOptionalString(formData, "title") || "Untitled form";
+    const description = getOptionalString(formData, "description");
     const isPublic = getBoolean(formData, "isPublic");
     const fields = parseFields(formData);
     const { supabase, user } = await getAuthenticatedUser();
 
-    if (!title) {
-      return { status: "error", message: "Please add a form title." };
-    }
+    console.log("[CREATE_FORM][START]", {
+      title,
+      description,
+      isPublic,
+      userId: user?.id,
+      environment: {
+        runtime: typeof window === "undefined" ? "server" : "client",
+        platform:
+          typeof navigator !== "undefined"
+            ? navigator.userAgent.includes("Mobile")
+              ? "mobile"
+              : "desktop"
+            : "unknown",
+      },
+    });
 
-    const { data: createdForm, error } = await supabase
-      .from("forms")
-      .insert({
+    console.log("[CREATE_FORM][INPUT_RECEIVED]", {
+      title,
+      description,
+      isPublic,
+    });
+
+    const qrShareToken = await generateUniqueShortToken(supabase, 6);
+    console.log("[FORM CREATE][TOKEN]", qrShareToken);
+
+    let createdForm: { id: string };
+
+    try {
+      console.log("[CREATE_FORM][DB][INSERT_ATTEMPT]", {
         owner_id: user.id,
         title,
         description: description || null,
         is_public: isPublic,
-        public_slug: buildPublicSlug(title),
-      })
-      .select("id,public_slug")
-      .single();
+        qr_share_token: qrShareToken,
+      });
 
-    if (error) {
-      return { status: "error", message: getFriendlyActionMessage(error) };
+      const result = await supabase
+        .from("forms")
+        .insert({
+          owner_id: user.id,
+          title,
+          description: description || null,
+          is_public: isPublic,
+          qr_share_token: qrShareToken,
+        })
+        .select("id")
+        .single();
+
+      console.log("[CREATE_FORM][DB][SUCCESS]", result);
+
+      if (result.error) {
+        throw result.error;
+      }
+
+      createdForm = result.data as { id: string };
+      console.log("[FORM CREATE][SUCCESS]", {
+        formId: createdForm.id,
+        qrShareToken,
+      });
+    } catch (error) {
+      const dbError = error as {
+        message?: string;
+        details?: string;
+        hint?: string;
+      };
+
+      console.error("[CREATE_FORM][DB][FAILED]", {
+        error,
+        message: dbError?.message,
+        details: dbError?.details,
+        hint: dbError?.hint,
+      });
+
+      throw error;
     }
 
     if (fields.length > 0) {
-      const fieldRows = fields.map((field, index) => ({
-        form_id: createdForm.id,
-        label: field.label || "Untitled field",
-        field_type: field.type,
-        is_required: field.required,
-        options: field.type === "select" ? field.options ?? [] : null,
-        position: index + 1,
-      }));
+        const fieldRows = fields.map((field, index) => ({
+          form_id: createdForm.id,
+          label: field.label || "Untitled field",
+          field_type: field.type,
+          is_required: field.required,
+          options: field.type === "select" ? field.options ?? [] : [],
+          position: index + 1,
+        }));
 
       try {
         const { error: fieldsError } = await supabase.from("form_fields").insert(fieldRows);
@@ -208,13 +257,19 @@ export async function createFormAction(_: CreateFormActionState, formData: FormD
     }
 
     revalidatePath("/dashboard");
+    console.log("[CREATE_FORM][COMPLETE] SUCCESS");
     return {
       status: "success",
       message: "Form created.",
       formId: createdForm.id,
-      publicSlug: createdForm.public_slug,
+      qr_share_token: qrShareToken,
     };
   } catch (error) {
+    console.error("[CREATE_FORM][CRASH]", {
+      error,
+      message: (error as { message?: string })?.message,
+    });
+
     return {
       status: "error",
       message: getFriendlyActionMessage(error),

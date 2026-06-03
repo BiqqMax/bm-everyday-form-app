@@ -8,7 +8,6 @@ type DashboardFormRow = {
   title: string;
   description: string | null;
   is_public: boolean;
-  public_slug: string;
   qr_share_token: string;
   expires_at: string | null;
   response_limit: number | null;
@@ -46,7 +45,6 @@ export type DashboardForm = {
   title: string;
   description: string | null;
   isPublic: boolean;
-  publicSlug: string;
   qrShareToken: string;
   expiresAt: string | null;
   responseLimit: number | null;
@@ -156,7 +154,7 @@ export async function getDashboardData(supabase: SupabaseClient, userId: string)
   console.log("[DASHBOARD] file=lib/dashboard/dashboard.ts function=getDashboardData query=forms table=forms owner_id");
   const formsResult = await supabase
     .from("forms")
-    .select("id,owner_id,title,description,is_public,public_slug,qr_share_token,created_at,updated_at,expires_at,response_limit,response_count")
+    .select("id,owner_id,title,description,is_public,qr_share_token,created_at,updated_at,expires_at,response_limit,response_count")
     .eq("owner_id", userId)
     .order("created_at", { ascending: false });
   console.log("[DASHBOARD] file=lib/dashboard/dashboard.ts function=getDashboardData query=forms table=forms success");
@@ -267,12 +265,11 @@ export async function getDashboardData(supabase: SupabaseClient, userId: string)
     const formSubmissions = submissionsByFormId[form.id] ?? [];
     const lastSubmissionAt = formSubmissions[0]?.created_at ?? null;
 
-      return {
+    return {
       id: form.id,
       title: form.title,
       description: form.description,
       isPublic: form.is_public,
-      publicSlug: form.public_slug,
       qrShareToken: form.qr_share_token,
       expiresAt: form.expires_at,
       responseLimit: form.response_limit,

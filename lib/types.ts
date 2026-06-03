@@ -9,7 +9,7 @@ export type FormField = {
 export type Form = {
   id: string;
   title: string;
-  description?: string;
+  description: string | null;
   public: boolean;
   fields: FormField[];
   createdAt: string; // ISO

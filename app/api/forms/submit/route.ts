@@ -3,20 +3,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "../../../../lib/supabase/server";
 import { getFriendlyActionMessage } from "../../../../lib/utils/friendly-error";
 import { getShareStatus } from "../../../../lib/forms/public";
+import { getFormByPublicToken } from "../../../../lib/forms/public-resolver";
 
 type SubmissionFieldValue = string | string[];
-
-type PublicFormRow = {
-  id: string;
-  title: string;
-  description: string | null;
-  owner_id: string;
-  is_public: boolean;
-  public_slug: string;
-  expires_at: string | null;
-  response_limit: number | null;
-  response_count: number;
-};
 
 type PublicFieldRow = {
   id: string;
@@ -30,17 +19,6 @@ type PublicFieldRow = {
 function getFormString(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value.trim() : "";
-}
-
-function toStringArray(value: FormDataEntryValue | null): string[] {
-  if (typeof value === "string") {
-    return value
-      .split(",")
-      .map((entry) => entry.trim())
-      .filter(Boolean);
-  }
-
-  return [];
 }
 
 function normalizeFieldValue(fieldType: PublicFieldRow["field_type"], values: string[]): string | string[] {
@@ -59,37 +37,16 @@ function isBlankValue(value: SubmissionFieldValue) {
   return value.trim().length === 0;
 }
 
-function getFieldInputKeys(fieldId: string) {
-  return [`field_${fieldId}`, `field_${fieldId}[]`];
-}
-
-function asStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value.map((entry) => (typeof entry === "string" ? entry.trim() : "")).filter(Boolean);
-}
-
 function getFriendlyMessage(error: unknown, fallback: string) {
   const message = getFriendlyActionMessage(error);
   return message && message !== "An unexpected error occurred." ? message : fallback;
 }
 
-async function loadPublicFormBySlug(supabase: Awaited<ReturnType<typeof createClient>>, publicSlug: string) {
-  console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=loadPublicFormBySlug query=form_lookup table=forms publicSlug");
-  const { data, error } = await supabase
-    .from("forms")
-    .select("id,title,description,owner_id,is_public,public_slug,expires_at,response_limit,response_count")
-    .eq("public_slug", publicSlug)
-    .maybeSingle();
-  console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=loadPublicFormBySlug query=form_lookup table=forms success");
-
-  if (error) {
-    throw error;
-  }
-
-  return data as PublicFormRow | null;
+async function loadPublicFormByToken(supabase: Awaited<ReturnType<typeof createClient>>, qrShareToken: string) {
+  console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=loadPublicFormByToken query=form_lookup table=forms qrShareToken");
+  const form = await getFormByPublicToken(supabase, qrShareToken);
+  console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=loadPublicFormByToken query=form_lookup table=forms success");
+  return form;
 }
 
 async function loadFormFields(supabase: Awaited<ReturnType<typeof createClient>>, formId: string) {
@@ -112,14 +69,15 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const formId = getFormString(formData, "formId");
-    const publicSlug = getFormString(formData, "publicSlug");
+    const publicToken = getFormString(formData, "publicToken");
+    const token = publicToken;
 
-    if (!formId || !publicSlug) {
+    if (!formId || !token) {
       return NextResponse.json({ message: "This form could not be submitted." }, { status: 400 });
     }
 
     const supabase = await createClient();
-    const form = await loadPublicFormBySlug(supabase, publicSlug);
+    const form = await loadPublicFormByToken(supabase, token);
 
     if (!form || form.id !== formId) {
       return NextResponse.json({ message: "This form link is invalid or unavailable." }, { status: 404 });
@@ -208,18 +166,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=POST query=forms_update table=forms");
-    const { error: refreshError } = await supabase
+    console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=POST query=forms_increment_response_count table=forms formId qrShareToken");
+    const responseCountUpdate = await supabase
       .from("forms")
       .update({ response_count: form.response_count + 1 })
       .eq("id", form.id)
-      .eq("public_slug", publicSlug);
-    console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=POST query=forms_update table=forms success");
+      .eq("qr_share_token", token);
+    console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=POST query=forms_increment_response_count table=forms success");
 
-    if (refreshError) {
+    if (responseCountUpdate.error) {
+      console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=POST query=submission_cleanup table=submission_answers table=submissions");
+      await supabase.from("submission_answers").delete().eq("submission_id", submissionId);
+      await supabase.from("submissions").delete().eq("id", submissionId);
+      console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=POST query=submission_cleanup table=submission_answers table=submissions success");
       return NextResponse.json(
-        { message: getFriendlyMessage(refreshError, "Response saved, but the response counter could not be updated.") },
-        { status: 200 }
+        { message: getFriendlyMessage(responseCountUpdate.error, "We couldn't update the form response count.") },
+        { status: 400 }
       );
     }
 
