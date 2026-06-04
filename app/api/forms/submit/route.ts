@@ -309,17 +309,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const answersToInsertWithoutSubmissionId = submissionPayload
+    const invalidFieldIds = submissionPayload
       .filter(({ value }) => !isBlankValue(value))
-      .map(({ field, value }) => ({
-        form_field_id: field.id,
-        answer_value: Array.isArray(value) ? value.map((entry) => entry.trim()).filter(Boolean) : value.trim(),
-      }));
-
-    console.log("[MAPPED_ANSWERS]", answersToInsertWithoutSubmissionId);
-
-    const invalidFieldIds = answersToInsertWithoutSubmissionId
-      .map((answer) => answer.form_field_id)
+      .map(({ field }) => field.id)
       .filter((formFieldId) => !validFieldIds.includes(formFieldId));
 
     if (invalidFieldIds.length > 0) {
@@ -334,27 +326,41 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Generate submissionId in application code (UUID)
     const submissionId = crypto.randomUUID();
-    const resolvedAnswers = answersInput.length > 0
-      ? answersInput
-          .map((answer) => {
-            if (!answer.fieldId) {
-              return null;
-            }
 
-            const value = answer.value;
-            if (typeof value !== "string" && !Array.isArray(value)) {
-              return null;
-            }
+    // Build answers using the unified submissionPayload
+    // Works identically for JSON and FormData paths
+    const answersWithSubmissionId: SubmissionAnswerRow[] = submissionPayload
+      .filter(({ value }) => !isBlankValue(value))
+      .map(({ field, value }) => ({
+        submission_id: submissionId,
+        form_field_id: field.id,
+        answer_value: value,
+      }));
 
-            return {
-              form_field_id: answer.fieldId,
-              answer_value: normalizeRequestAnswerValue(value),
-            };
-          })
-          .filter((answer): answer is { form_field_id: string; answer_value: SubmissionFieldValue } => answer !== null)
-      : [];
+    // Validate answers before any DB write
+    const invalidAnswerRows = answersWithSubmissionId.filter((answer) => {
+      return (
+        !answer.submission_id ||
+        !validFieldIds.includes(answer.form_field_id) ||
+        !isValidAnswerValue(answer.answer_value)
+      );
+    });
 
+    if (invalidAnswerRows.length > 0) {
+      console.error("[SUBMIT_010] invalid answer rows", {
+        invalidFieldIds: invalidAnswerRows.map((answer) => answer.form_field_id),
+        validFieldIds,
+      });
+      console.error("[SUBMIT_EXIT]", "SUBMIT_010");
+      return NextResponse.json(
+        { code: "SUBMIT_010", message: "This form could not be submitted." },
+        { status: 400 }
+      );
+    }
+
+    // Insert submission with application-generated UUID
     const submissionInsertPayload = {
       id: submissionId,
       form_id: form.id,
@@ -362,20 +368,7 @@ export async function POST(request: NextRequest) {
       submitted_by_user_id: null,
     };
 
-    const { data: sessionData } = await supabase.auth.getSession();
-    const { data: userData } = await supabase.auth.getUser();
-
     console.log("[SUBMISSION_INSERT_PAYLOAD]", submissionInsertPayload);
-    console.log("[AUTH_CONTEXT]", {
-      auth_uid: userData.user?.id ?? null,
-      role: sessionData.session?.user?.role ?? null,
-      session_exists: Boolean(sessionData.session),
-    });
-    console.log("[INSERT_CHECK]", {
-      form_id: form.id,
-      form_is_public: form.is_public,
-      submitted_by_user_id: submissionInsertPayload.submitted_by_user_id,
-    });
     console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=POST query=submissions_insert table=submissions");
     const submissionInsert = await supabase.from("submissions").insert(submissionInsertPayload);
     console.log("[SUBMISSION_INSERT_RESULT]", submissionInsert);
@@ -392,33 +385,7 @@ export async function POST(request: NextRequest) {
     console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=POST query=submissions_insert table=submissions success");
     console.log("[SUBMIT][SUBMISSION_INSERT_SUCCESS]");
 
-    const answersWithSubmissionId: SubmissionAnswerRow[] = resolvedAnswers.map((answer) => ({
-      submission_id: submissionId,
-      form_field_id: answer.form_field_id,
-      answer_value: answer.answer_value,
-    }));
-
-    const invalidAnswerRows = answersWithSubmissionId.filter((answer) => {
-      return (
-        !answer.submission_id ||
-        !validFieldIds.includes(answer.form_field_id) ||
-        !isValidAnswerValue(answer.answer_value)
-      );
-    });
-
-    if (invalidAnswerRows.length > 0) {
-      console.error("[SUBMIT_010] invalid answer rows", {
-        invalidFieldIds: invalidAnswerRows.map((answer) => answer.form_field_id),
-        validFieldIds,
-      });
-      console.error("[SUBMIT_EXIT]", "SUBMIT_010");
-      await rollbackSubmissionWrites(supabase, submissionId);
-      return NextResponse.json(
-        { code: "SUBMIT_010", message: "This form could not be submitted." },
-        { status: 400 }
-      );
-    }
-
+    // Insert answers using same submissionId — no select() after insert
     console.log("[SUBMIT][ANSWERS_INSERT_ATTEMPT]");
 
     if (answersWithSubmissionId.length > 0) {
