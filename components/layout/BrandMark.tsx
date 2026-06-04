@@ -11,19 +11,7 @@ type BrandMarkProps = {
   Pick<HTMLAttributes<HTMLSpanElement>, 'title'>;
 
 function CompactBrandMark() {
-  return (
-    <>
-      <Image src="/icon.svg" alt="" width={64} height={64} className="h-9 w-9 dark:hidden" aria-hidden="true" />
-      <Image
-        src="/icon-white.svg"
-        alt=""
-        width={64}
-        height={64}
-        className="hidden h-9 w-9 dark:block"
-        aria-hidden="true"
-      />
-    </>
-  );
+  return <Image src="/icon.svg" alt="" width={64} height={64} className="h-9 w-9" aria-hidden="true" />;
 }
 
 function FullBrandMark() {

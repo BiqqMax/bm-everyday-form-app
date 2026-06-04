@@ -26,31 +26,52 @@ export default function HeroMotion({ children, className = '' }: HeroMotionProps
   const glowRef = useRef<SVGSVGElement | null>(null);
   const targetRef = useRef({ x: 50, y: 35 });
   const currentRef = useRef({ x: 50, y: 35 });
+  const frameRef = useRef<number | null>(null);
 
-  useEffect(() => {
-    let frame = 0;
+  useEffect(
+    () => () => {
+      if (frameRef.current !== null) {
+        window.cancelAnimationFrame(frameRef.current);
+      }
+    },
+    [],
+  );
 
-    const tick = () => {
-      const current = currentRef.current;
-      const target = targetRef.current;
+  function animate() {
+    const current = currentRef.current;
+    const target = targetRef.current;
 
-      current.x += (target.x - current.x) * 0.08;
-      current.y += (target.y - current.y) * 0.08;
+    current.x += (target.x - current.x) * 0.08;
+    current.y += (target.y - current.y) * 0.08;
+
+    if (glowRef.current) {
+      glowRef.current.style.setProperty('--hero-glow-x', `${current.x}%`);
+      glowRef.current.style.setProperty('--hero-glow-y', `${current.y}%`);
+    }
+
+    const settled = Math.abs(target.x - current.x) < 0.05 && Math.abs(target.y - current.y) < 0.05;
+
+    if (settled) {
+      current.x = target.x;
+      current.y = target.y;
 
       if (glowRef.current) {
-        glowRef.current.style.setProperty('--hero-glow-x', `${current.x}%`);
-        glowRef.current.style.setProperty('--hero-glow-y', `${current.y}%`);
+        glowRef.current.style.setProperty('--hero-glow-x', `${target.x}%`);
+        glowRef.current.style.setProperty('--hero-glow-y', `${target.y}%`);
       }
 
-      frame = window.requestAnimationFrame(tick);
-    };
+      frameRef.current = null;
+      return;
+    }
 
-    frame = window.requestAnimationFrame(tick);
+    frameRef.current = window.requestAnimationFrame(animate);
+  }
 
-    return () => {
-      window.cancelAnimationFrame(frame);
-    };
-  }, []);
+  function startAnimation() {
+    if (frameRef.current === null) {
+      frameRef.current = window.requestAnimationFrame(animate);
+    }
+  }
 
   function updateTarget(clientX: number, clientY: number) {
     const wrapper = wrapperRef.current;
@@ -65,6 +86,8 @@ export default function HeroMotion({ children, className = '' }: HeroMotionProps
       x: clamp(((clientX - rect.left) / rect.width) * 100, 0, 100),
       y: clamp(((clientY - rect.top) / rect.height) * 100, 0, 100),
     };
+
+    startAnimation();
   }
 
   const glowStyle: GlowStyle = {
@@ -80,6 +103,7 @@ export default function HeroMotion({ children, className = '' }: HeroMotionProps
       onPointerEnter={(event) => updateTarget(event.clientX, event.clientY)}
       onPointerLeave={() => {
         targetRef.current = { x: 50, y: 35 };
+        startAnimation();
       }}
     >
       <svg

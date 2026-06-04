@@ -153,8 +153,8 @@ export function LandingPage() {
             <HeroMotion className="relative z-10 w-full max-w-[42rem] pt-10 text-center sm:pt-0">
               <div className="mx-auto flex max-w-none flex-col items-center">
                 <h1 className="hero-reveal hero-reveal-headline mx-auto max-w-none text-[2.75rem] font-semibold leading-[0.98] tracking-tight text-foreground sm:text-[3.5rem] lg:text-[4rem] xl:text-[4.75rem]">
-                  <span className="block whitespace-nowrap">Calm software for</span>
-                  <span className="hero-highlight block whitespace-nowrap">everyday forms.</span>
+                  <span className="block">Calm software for</span>
+                  <span className="hero-highlight block">everyday forms.</span>
                 </h1>
 
                 <p className="hero-reveal hero-reveal-paragraph mx-auto mt-6 max-w-[34rem] text-[1rem] leading-8 text-muted sm:text-[1.125rem]">
