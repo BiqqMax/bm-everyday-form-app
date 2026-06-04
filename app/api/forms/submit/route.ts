@@ -16,9 +16,32 @@ type PublicFieldRow = {
   position: number;
 };
 
+type SubmissionAnswerRow = {
+  submission_id: string;
+  form_field_id: string;
+  answer_value: SubmissionFieldValue;
+};
+
+type SubmissionRequestBody = {
+  publicToken?: string;
+  deviceId?: string;
+  answers?: Array<{
+    fieldId?: string;
+    value?: string | string[];
+  }>;
+};
+
 function getFormString(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeRequestAnswerValue(value: string | string[]) {
+  if (Array.isArray(value)) {
+    return value.map((entry) => entry.trim()).filter(Boolean);
+  }
+
+  return value.trim();
 }
 
 function normalizeFieldValue(fieldType: PublicFieldRow["field_type"], values: string[]): string | string[] {
@@ -35,6 +58,14 @@ function isBlankValue(value: SubmissionFieldValue) {
   }
 
   return value.trim().length === 0;
+}
+
+function isValidAnswerValue(value: SubmissionFieldValue) {
+  if (Array.isArray(value)) {
+    return value.every((entry) => entry.trim().length > 0);
+  }
+
+  return value.trim().length > 0;
 }
 
 function getFriendlyMessage(error: unknown, fallback: string) {
@@ -97,17 +128,74 @@ async function loadFormFields(supabase: Awaited<ReturnType<typeof createClient>>
   return (data ?? []) as PublicFieldRow[];
 }
 
+async function rollbackSubmissionWrites(supabase: Awaited<ReturnType<typeof createClient>>, submissionId: string) {
+  console.log("[SUBMIT][ROLLBACK_START]", { submissionId });
+
+  const answersDeleteResult = await supabase
+    .from("submission_answers")
+    .delete()
+    .eq("submission_id", submissionId);
+
+  if (answersDeleteResult.error) {
+    console.error("[SUBMIT][ROLLBACK_ANSWERS_DELETE_FAILED]", answersDeleteResult.error);
+  }
+
+  const submissionDeleteResult = await supabase
+    .from("submissions")
+    .delete()
+    .eq("id", submissionId);
+
+  if (submissionDeleteResult.error) {
+    console.error("[SUBMIT][ROLLBACK_SUBMISSION_DELETE_FAILED]", submissionDeleteResult.error);
+  }
+
+  console.log("[SUBMIT][ROLLBACK_COMPLETE]", { submissionId });
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData();
-    const body = parseSubmissionBody(formData);
-    console.log("[SUBMIT][BODY]", body);
+    console.log("[SUBMIT_ROUTE_START]");
+    console.log("[SUBMIT][START]");
 
-    const publicToken = getFormString(formData, "publicToken");
+    const contentType = request.headers.get("content-type") ?? "";
+    let publicToken = "";
+    let deviceId = "";
+    let answersInput: SubmissionRequestBody["answers"] = [];
+    let body: Record<string, string | string[]> = {};
+
+    if (contentType.includes("application/json")) {
+      const requestBody = (await request.json().catch(() => ({}))) as SubmissionRequestBody;
+      publicToken = typeof requestBody.publicToken === "string" ? requestBody.publicToken.trim() : "";
+      deviceId = typeof requestBody.deviceId === "string" ? requestBody.deviceId.trim() : "";
+      answersInput = Array.isArray(requestBody.answers) ? requestBody.answers : [];
+      console.log("[SUBMIT][BODY]", requestBody);
+    } else {
+      const formData = await request.formData();
+      body = parseSubmissionBody(formData);
+      console.log("[SUBMIT][BODY]", body);
+      publicToken = getFormString(formData, "publicToken");
+      deviceId = getFormString(formData, "deviceId");
+      answersInput = [];
+    }
+
     console.log("[SUBMIT][TOKEN]", publicToken);
 
     if (!publicToken) {
-      return NextResponse.json({ message: "This form could not be submitted." }, { status: 400 });
+      console.error("[SUBMIT_001] publicToken missing");
+      console.error("[SUBMIT_EXIT]", "SUBMIT_001");
+      return NextResponse.json(
+        { code: "SUBMIT_001", message: "This form could not be submitted." },
+        { status: 400 }
+      );
+    }
+
+    if (!deviceId) {
+      console.error("[SUBMIT_013] deviceId missing");
+      console.error("[SUBMIT_EXIT]", "SUBMIT_013");
+      return NextResponse.json(
+        { code: "SUBMIT_013", message: "This form could not be submitted." },
+        { status: 400 }
+      );
     }
 
     const supabase = await createClient();
@@ -115,7 +203,12 @@ export async function POST(request: NextRequest) {
     console.log("[SUBMIT][FORM_RESOLVED]", form);
 
     if (!form) {
-      return NextResponse.json({ message: "This form link is invalid or unavailable." }, { status: 404 });
+      console.error("[SUBMIT_002] form not found");
+      console.error("[SUBMIT_EXIT]", "SUBMIT_002");
+      return NextResponse.json(
+        { code: "SUBMIT_002", message: "This form link is invalid or unavailable." },
+        { status: 404 }
+      );
     }
 
     const status = getShareStatus({
@@ -126,41 +219,79 @@ export async function POST(request: NextRequest) {
     });
 
     if (status === "draft") {
-      return NextResponse.json({ message: "This form is still in draft." }, { status: 403 });
+      console.error("[SUBMIT_003] form draft");
+      console.error("[SUBMIT_EXIT]", "SUBMIT_003");
+      return NextResponse.json(
+        { code: "SUBMIT_003", message: "This form is still in draft." },
+        { status: 403 }
+      );
     }
 
     if (status === "expired") {
-      return NextResponse.json({ message: "This form has expired." }, { status: 403 });
+      console.error("[SUBMIT_004] form expired");
+      console.error("[SUBMIT_EXIT]", "SUBMIT_004");
+      return NextResponse.json(
+        { code: "SUBMIT_004", message: "This form has expired." },
+        { status: 403 }
+      );
     }
 
     if (status === "limit_reached") {
-      return NextResponse.json({ message: "This form has reached its response limit." }, { status: 403 });
+      console.error("[SUBMIT_005] response limit reached");
+      console.error("[SUBMIT_EXIT]", "SUBMIT_005");
+      return NextResponse.json(
+        { code: "SUBMIT_005", message: "This form has reached its response limit." },
+        { status: 403 }
+      );
     }
 
     const fields = await loadFormFields(supabase, form.id);
-    console.log("[DB_FIELDS]", fields.map((field) => ({ id: field.id, label: field.label })));
+    console.log("[SUBMIT][FIELDS_LOADED]");
+    console.log(
+      "[DB_FIELDS]",
+      fields.map((field) => ({
+        id: field.id,
+        label: field.label,
+      }))
+    );
 
     const validFieldIds = fields.map((field) => field.id);
-    const clientFieldKeys = Object.keys(body).filter((key) => key.startsWith("field_"));
-    console.log("[CLIENT_FIELD_KEYS]", clientFieldKeys);
 
-    const invalidFieldIds = clientFieldKeys
-      .map((key) => key.replace(/^field_/, "").replace(/\[\]$/, ""))
-      .filter((fieldId) => fieldId.length > 0 && !validFieldIds.includes(fieldId));
+    const normalizedAnswers =
+      answersInput.length > 0
+        ? answersInput
+            .map((answer) => {
+              const fieldId = typeof answer?.fieldId === "string" ? answer.fieldId.trim() : "";
+              if (!fieldId) {
+                return null;
+              }
 
-    if (invalidFieldIds.length > 0) {
-      console.error("[FIELD_MISMATCH]", {
-        invalidFieldIds,
-        validFieldIds,
-      });
-      throw new Error("Field mapping mismatch.");
-    }
+              const value = answer.value;
+              if (typeof value !== "string" && !Array.isArray(value)) {
+                return null;
+              }
+
+              return {
+                form_field_id: fieldId,
+                answer_value: normalizeRequestAnswerValue(value),
+              };
+            })
+            .filter((answer): answer is { form_field_id: string; answer_value: SubmissionFieldValue } => answer !== null)
+        : [];
+
+    console.log(
+      "[CLIENT_FIELD_KEYS]",
+      answersInput.length > 0 ? normalizedAnswers.map((answer) => answer.form_field_id) : []
+    );
 
     const submissionPayload = fields.map((field) => {
-      const singleValue = getBodyValues(body, `field_${field.id}`)[0] ?? "";
-      const checkboxValues = getBodyValues(body, `field_${field.id}[]`);
-      const rawValue = field.field_type === "checkbox" ? checkboxValues : singleValue ? [singleValue] : [];
-      const value = normalizeFieldValue(field.field_type, rawValue.length ? rawValue : checkboxValues);
+      const answer = answersInput.length > 0 ? normalizedAnswers.find((entry) => entry.form_field_id === field.id) : null;
+
+      const value =
+        answer?.answer_value ??
+        (field.field_type === "checkbox"
+          ? normalizeFieldValue(field.field_type, getBodyValues(body, `field_${field.id}[]`))
+          : normalizeFieldValue(field.field_type, getBodyValues(body, `field_${field.id}`)));
 
       return {
         field,
@@ -170,70 +301,149 @@ export async function POST(request: NextRequest) {
 
     const missingRequiredField = submissionPayload.find(({ field, value }) => field.is_required && isBlankValue(value));
     if (missingRequiredField) {
+      console.error("[SUBMIT_006] required field missing", missingRequiredField.field.label);
+      console.error("[SUBMIT_EXIT]", "SUBMIT_006");
       return NextResponse.json(
-        { message: `Please complete ${missingRequiredField.field.label}.` },
+        { code: "SUBMIT_006", message: `Please complete ${missingRequiredField.field.label}.` },
         { status: 400 }
       );
     }
 
-    console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=POST query=submissions_insert table=submissions");
-    const submissionInsert = await supabase
-      .from("submissions")
-      .insert({
-        form_id: form.id,
-        submitted_by_user_id: null,
-      })
-      .select("id")
-      .maybeSingle();
-    console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=POST query=submissions_insert table=submissions success");
-
-    if (submissionInsert.error || !submissionInsert.data) {
-      return NextResponse.json(
-        { message: getFriendlyMessage(submissionInsert.error, "We couldn't save this response.") },
-        { status: 400 }
-      );
-    }
-
-    const submissionId = submissionInsert.data.id as string;
-
-    const answersToInsert = submissionPayload
+    const answersToInsertWithoutSubmissionId = submissionPayload
       .filter(({ value }) => !isBlankValue(value))
       .map(({ field, value }) => ({
-        submission_id: submissionId,
         form_field_id: field.id,
         answer_value: Array.isArray(value) ? value.map((entry) => entry.trim()).filter(Boolean) : value.trim(),
       }));
 
-    console.log("[ANSWERS_INSERT][PAYLOAD]", answersToInsert);
-    console.log("[ANSWERS_FINAL_PAYLOAD]", answersToInsert);
-    console.log("[MAPPED_ANSWERS]", answersToInsert);
+    console.log("[MAPPED_ANSWERS]", answersToInsertWithoutSubmissionId);
 
-    if (answersToInsert.length > 0) {
-      console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=POST query=submission_answers_insert table=submission_answers");
-      const result = await supabase.from("submission_answers").insert(answersToInsert);
-      console.log("[ANSWERS_DB_RESULT]", result);
-      const { error: answersError } = result;
-      console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=POST query=submission_answers_insert table=submission_answers success");
+    const invalidFieldIds = answersToInsertWithoutSubmissionId
+      .map((answer) => answer.form_field_id)
+      .filter((formFieldId) => !validFieldIds.includes(formFieldId));
 
-      if (answersError) {
-        console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=POST query=submissions_delete_cleanup table=submissions");
-        await supabase.from("submissions").delete().eq("id", submissionId);
-        console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=POST query=submissions_delete_cleanup table=submissions success");
+    if (invalidFieldIds.length > 0) {
+      console.error("[SUBMIT_007] invalid field mapping", {
+        invalidFieldIds,
+        validFieldIds,
+      });
+      console.error("[SUBMIT_EXIT]", "SUBMIT_007");
+      return NextResponse.json(
+        { code: "SUBMIT_007", message: "This form could not be submitted." },
+        { status: 400 }
+      );
+    }
+
+    const submissionId = crypto.randomUUID();
+    const resolvedAnswers = answersInput.length > 0
+      ? answersInput
+          .map((answer) => {
+            if (!answer.fieldId) {
+              return null;
+            }
+
+            const value = answer.value;
+            if (typeof value !== "string" && !Array.isArray(value)) {
+              return null;
+            }
+
+            return {
+              form_field_id: answer.fieldId,
+              answer_value: normalizeRequestAnswerValue(value),
+            };
+          })
+          .filter((answer): answer is { form_field_id: string; answer_value: SubmissionFieldValue } => answer !== null)
+      : [];
+
+    const submissionInsertPayload = {
+      id: submissionId,
+      form_id: form.id,
+      device_id: deviceId,
+      submitted_by_user_id: null,
+    };
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    const { data: userData } = await supabase.auth.getUser();
+
+    console.log("[SUBMISSION_INSERT_PAYLOAD]", submissionInsertPayload);
+    console.log("[AUTH_CONTEXT]", {
+      auth_uid: userData.user?.id ?? null,
+      role: sessionData.session?.user?.role ?? null,
+      session_exists: Boolean(sessionData.session),
+    });
+    console.log("[INSERT_CHECK]", {
+      form_id: form.id,
+      form_is_public: form.is_public,
+      submitted_by_user_id: submissionInsertPayload.submitted_by_user_id,
+    });
+    console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=POST query=submissions_insert table=submissions");
+    const submissionInsert = await supabase.from("submissions").insert(submissionInsertPayload);
+    console.log("[SUBMISSION_INSERT_RESULT]", submissionInsert);
+
+    if (submissionInsert.error) {
+      console.error("[SUBMIT_008] submission insert failed", submissionInsert.error);
+      console.error("[SUBMIT_EXIT]", "SUBMIT_008");
+      return NextResponse.json(
+        { code: "SUBMIT_008", message: "We couldn't save this response." },
+        { status: 400 }
+      );
+    }
+
+    console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=POST query=submissions_insert table=submissions success");
+    console.log("[SUBMIT][SUBMISSION_INSERT_SUCCESS]");
+
+    const answersWithSubmissionId: SubmissionAnswerRow[] = resolvedAnswers.map((answer) => ({
+      submission_id: submissionId,
+      form_field_id: answer.form_field_id,
+      answer_value: answer.answer_value,
+    }));
+
+    const invalidAnswerRows = answersWithSubmissionId.filter((answer) => {
+      return (
+        !answer.submission_id ||
+        !validFieldIds.includes(answer.form_field_id) ||
+        !isValidAnswerValue(answer.answer_value)
+      );
+    });
+
+    if (invalidAnswerRows.length > 0) {
+      console.error("[SUBMIT_010] invalid answer rows", {
+        invalidFieldIds: invalidAnswerRows.map((answer) => answer.form_field_id),
+        validFieldIds,
+      });
+      console.error("[SUBMIT_EXIT]", "SUBMIT_010");
+      await rollbackSubmissionWrites(supabase, submissionId);
+      return NextResponse.json(
+        { code: "SUBMIT_010", message: "This form could not be submitted." },
+        { status: 400 }
+      );
+    }
+
+    console.log("[SUBMIT][ANSWERS_INSERT_ATTEMPT]");
+
+    if (answersWithSubmissionId.length > 0) {
+      const answersInsert = await supabase.from("submission_answers").insert(answersWithSubmissionId);
+      console.log("[ANSWERS_DB_RESULT]", answersInsert);
+
+      if (answersInsert.error) {
+        console.error("[SUBMIT_011] submission_answers insert failed", answersInsert.error);
+        console.error("[SUBMIT_EXIT]", "SUBMIT_011");
+        await rollbackSubmissionWrites(supabase, submissionId);
         return NextResponse.json(
-          { message: getFriendlyMessage(answersError, "We couldn't save all response answers.") },
+          { code: "SUBMIT_011", message: "We couldn't save this response." },
           { status: 400 }
         );
       }
     }
 
-    console.log("[SUBMIT][END_OF_INSERTS_REACHED]");
-    console.log("[SUBMIT][ABOUT_TO_RETURN_SUCCESS]");
-    console.log("[SUBMIT][ABOUT_TO_RETURN_400_CHECKS]");
+    console.log("[SUBMIT][FINAL_SUCCESS_RETURN]");
 
     return NextResponse.json({ message: "Response submitted successfully." }, { status: 200 });
   } catch (error) {
+    console.error("[SUBMIT_012] unexpected error", error);
+    console.error("[SUBMIT_EXIT]", "SUBMIT_012");
     return NextResponse.json(
-      { message: getFriendlyMessage(error, "We couldn't submit this response.") },
+      { code: "SUBMIT_012", message: getFriendlyMessage(error, "We couldn't submit this response.") },
       { status: 500 }
     );
   }

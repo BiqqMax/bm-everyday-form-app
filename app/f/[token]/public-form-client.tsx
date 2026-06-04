@@ -65,6 +65,49 @@ function checkboxGroupName(fieldId: string) {
   return `field_${fieldId}[]`;
 }
 
+type SubmissionAnswerPayload =
+  | {
+      fieldId: string;
+      value: string;
+    }
+  | {
+      fieldId: string;
+      value: string[];
+    };
+
+function getDeviceId() {
+  let id = localStorage.getItem("device_id");
+
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem("device_id", id);
+  }
+
+  return id;
+}
+
+function collectSubmissionAnswers(formElement: HTMLFormElement, fields: PublicFormField[]) {
+  const formData = new FormData(formElement);
+
+  return fields
+    .map((field) => {
+      if (field.type === "checkbox") {
+        const values = formData
+          .getAll(checkboxGroupName(field.id))
+          .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
+          .filter(Boolean);
+
+        return values.length > 0 ? { fieldId: field.id, value: values } : null;
+      }
+
+      const value = formData.get(fieldName(field.id));
+      const normalizedValue = typeof value === "string" ? value.trim() : "";
+
+      return normalizedValue ? { fieldId: field.id, value: normalizedValue } : null;
+    })
+    .filter((answer) => answer !== null);
+}
+
 function SubmissionStatus({ state }: { state: SubmissionState }) {
   if (state.status === "idle") {
     return null;
@@ -181,7 +224,7 @@ export function PublicFormClient({ form }: { form: PublicFormView }) {
     }
 
     const formElement = event.currentTarget;
-    const formData = new FormData(formElement);
+    const answers = collectSubmissionAnswers(formElement, form.fields);
 
     setIsSubmitting(true);
     setState({ status: "submitting", message: "Submitting your response…" });
@@ -191,8 +234,13 @@ export function PublicFormClient({ form }: { form: PublicFormView }) {
         method: "POST",
         headers: {
           Accept: "application/json",
+          "Content-Type": "application/json",
         },
-        body: formData,
+        body: JSON.stringify({
+          publicToken: form.qrShareToken,
+          deviceId: getDeviceId(),
+          answers,
+        }),
       });
 
       const payload = (await response.json().catch(() => ({}))) as { message?: unknown };

@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import ThemeProvider from '../components/theme/ThemeProvider';
 import { AuthBootProvider } from '../components/auth/AuthBootProvider';
 import AppShell from '../components/layout/AppShell';
+import { siteUrl } from '../lib/supabase/env';
 import './globals.css';
 
 const LIGHT_BACKGROUND = '#f8fafc';
@@ -86,7 +87,7 @@ const themeBootstrap = `
 `;
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://everyday-forms.example'),
+  metadataBase: new URL(siteUrl),
   title: {
     default: 'Everyday Forms',
     template: '%s | Everyday Forms',
