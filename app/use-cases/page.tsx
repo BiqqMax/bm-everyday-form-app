@@ -5,11 +5,17 @@ import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
 import Container from '../../components/layout/Container';
 import MainNav from '../../components/layout/MainNav';
+import {
+  createBreadcrumbJsonLd,
+  createPageMetadata,
+  seoJsonLdScript,
+} from '../../lib/seo';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = createPageMetadata({
   title: 'Use Cases',
-  description: 'Practical workflows Everyday Forms supports across teams and everyday operations.',
-};
+  description: 'See how Everyday Forms supports schools, administrative teams, businesses, registration centres, and personal workflows.',
+  path: '/use-cases',
+});
 
 type UseCase = {
   title: string;
@@ -103,8 +109,14 @@ function UseCaseCard({ item }: { item: UseCase }) {
 }
 
 export default function UseCasesPage() {
+  const breadcrumbJsonLd = createBreadcrumbJsonLd([
+    { name: 'Home', path: '/' },
+    { name: 'Use cases', path: '/use-cases' },
+  ]);
+
   return (
     <div className="min-h-screen bg-background text-foreground">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: seoJsonLdScript(breadcrumbJsonLd) }} />
       <MainNav />
 
       <main>

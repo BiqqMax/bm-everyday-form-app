@@ -5,11 +5,17 @@ import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
 import Container from '../../components/layout/Container';
 import MainNav from '../../components/layout/MainNav';
+import {
+  createBreadcrumbJsonLd,
+  createPageMetadata,
+  seoJsonLdScript,
+} from '../../lib/seo';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = createPageMetadata({
   title: 'Features',
-  description: 'A practical overview of Everyday Forms features, workflows, and controls.',
-};
+  description: 'Explore the form creation, response management, sharing, and workflow features built into Everyday Forms.',
+  path: '/features',
+});
 
 type FeatureGroup = {
   title: string;
@@ -134,8 +140,14 @@ function FeatureGroupCard({ group }: { group: FeatureGroup }) {
 }
 
 export default function FeaturesPage() {
+  const breadcrumbJsonLd = createBreadcrumbJsonLd([
+    { name: 'Home', path: '/' },
+    { name: 'Features', path: '/features' },
+  ]);
+
   return (
     <div className="min-h-screen bg-background text-foreground">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: seoJsonLdScript(breadcrumbJsonLd) }} />
       <MainNav />
 
       <main>

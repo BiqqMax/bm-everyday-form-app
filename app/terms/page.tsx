@@ -4,11 +4,13 @@ import Link from 'next/link';
 import Card from '../../components/ui/Card';
 import Container from '../../components/layout/Container';
 import MainNav from '../../components/layout/MainNav';
+import { createBreadcrumbJsonLd, createPageMetadata, seoJsonLdScript } from '../../lib/seo';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = createPageMetadata({
   title: 'Terms',
-  description: 'Terms of use for Everyday Forms.',
-};
+  description: 'Review the terms that apply to using Everyday Forms and your workspace responsibilities.',
+  path: '/terms',
+});
 
 const termsPoints = [
   'Use the service in a lawful and responsible way',
@@ -40,8 +42,14 @@ function BulletList({ items }: { items: string[] }) {
 }
 
 export default function TermsPage() {
+  const breadcrumbJsonLd = createBreadcrumbJsonLd([
+    { name: 'Home', path: '/' },
+    { name: 'Terms', path: '/terms' },
+  ]);
+
   return (
     <div className="min-h-screen bg-background text-foreground">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: seoJsonLdScript(breadcrumbJsonLd) }} />
       <MainNav />
 
       <main>

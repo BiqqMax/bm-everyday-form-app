@@ -3,19 +3,22 @@ import { redirect } from "next/navigation";
 
 import BrandMark from "../../components/layout/BrandMark";
 import OnboardingForm from "../../components/onboarding/OnboardingForm";
+import { ProtectedRouteGuard } from "../../components/auth/AuthRouteGuard";
 import { DASHBOARD_ROUTE, LOGIN_ROUTE, ONBOARDING_ROUTE } from "../../lib/auth/flow";
 import { getPostAuthDestination } from "../../lib/auth/post-auth";
+import { createPageMetadata } from "../../lib/seo";
 import { getServerSupabaseClient } from "../../lib/supabase/server";
-import { ProtectedRouteGuard } from "../../components/auth/AuthRouteGuard";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 export const revalidate = 0;
 
-export const metadata: Metadata = {
-  title: "Onboarding | Everyday Forms",
+export const metadata: Metadata = createPageMetadata({
+  title: "Onboarding",
   description: "Finish setting up your Everyday Forms workspace.",
-};
+  path: "/onboarding",
+  noindex: true,
+});
 
 export default async function OnboardingPage() {
   const supabase = await getServerSupabaseClient();

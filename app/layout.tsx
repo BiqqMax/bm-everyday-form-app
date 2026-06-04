@@ -4,6 +4,15 @@ import type { ReactNode } from 'react';
 import ThemeProvider from '../components/theme/ThemeProvider';
 import { AuthBootProvider } from '../components/auth/AuthBootProvider';
 import AppShell from '../components/layout/AppShell';
+import {
+  SITE_DESCRIPTION,
+  SITE_NAME,
+  SITE_SOCIAL_IMAGE_PATH,
+  createOrganizationJsonLd,
+  createSoftwareApplicationJsonLd,
+  createWebSiteJsonLd,
+  seoJsonLdScript,
+} from '../lib/seo';
 import { siteUrl } from '../lib/supabase/env';
 import './globals.css';
 
@@ -89,25 +98,34 @@ const themeBootstrap = `
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: 'Everyday Forms',
-    template: '%s | Everyday Forms',
+    default: SITE_NAME,
+    template: `%s | ${SITE_NAME}`,
   },
-  description: 'Dependable forms and workflow software for everyday use.',
-  applicationName: 'Everyday Forms',
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
   icons: {
     icon: '/favicon.svg',
     shortcut: '/favicon.svg',
     apple: '/icon.svg',
   },
   openGraph: {
-    title: 'Everyday Forms',
-    description: 'Dependable forms and workflow software for everyday use.',
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
     type: 'website',
+    siteName: SITE_NAME,
+    url: siteUrl,
+    images: [
+      {
+        url: SITE_SOCIAL_IMAGE_PATH,
+        alt: `${SITE_NAME} social preview`,
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Everyday Forms',
-    description: 'Dependable forms and workflow software for everyday use.',
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+    images: [SITE_SOCIAL_IMAGE_PATH],
   },
 };
 
@@ -133,6 +151,9 @@ export default function RootLayout({
       <head>
         <style dangerouslySetInnerHTML={{ __html: criticalPaintStyles }} />
         <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: seoJsonLdScript(createOrganizationJsonLd()) }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: seoJsonLdScript(createWebSiteJsonLd()) }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: seoJsonLdScript(createSoftwareApplicationJsonLd()) }} />
       </head>
       <body
         className="min-h-screen bg-background text-foreground antialiased"

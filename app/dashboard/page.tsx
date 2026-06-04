@@ -1,22 +1,24 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import Dashboard from "../../components/dashboard/Dashboard";
+import { ProtectedRouteGuard } from "../../components/auth/AuthRouteGuard";
 import { DASHBOARD_ROUTE } from "../../lib/auth/flow";
 import { getPostAuthDestination } from "../../lib/auth/post-auth";
 import { getDashboardData } from "../../lib/dashboard/dashboard";
+import { createPageMetadata } from "../../lib/seo";
 import { getSettingsData } from "../../lib/settings/data";
 import { getServerSupabaseClient } from "../../lib/supabase/server";
-import { ProtectedRouteGuard } from "../../components/auth/AuthRouteGuard";
-
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 export const revalidate = 0;
 
-export const metadata: Metadata = {
-  title: "Dashboard | Everyday Forms",
+export const metadata: Metadata = createPageMetadata({
+  title: "Dashboard",
   description: "Manage forms and review responses securely in a shared workspace.",
-};
+  path: "/dashboard",
+  noindex: true,
+});
 
 export default async function DashboardPage() {
   const supabase = await getServerSupabaseClient();

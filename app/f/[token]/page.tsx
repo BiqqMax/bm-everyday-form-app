@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 
-import { createClient } from "../../../lib/supabase/server";
-import { getFormByPublicToken } from "../../../lib/forms/public-resolver";
 import { PublicFormClient, type PublicFormView } from "./public-form-client";
+import { getFormByPublicToken } from "../../../lib/forms/public-resolver";
+import { createPageMetadata } from "../../../lib/seo";
+import { createClient } from "../../../lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -125,18 +127,26 @@ async function loadPublicForm(token: string): Promise<PublicFormView | null> {
 
 export async function generateMetadata({ params }: { params: Promise<PageParams> }): Promise<Metadata> {
   const { token } = await params;
-  const form = await loadPublicForm(safeDecode(token));
+  const resolvedToken = safeDecode(token);
+  const form = await loadPublicForm(resolvedToken);
 
-  return {
-    title: form?.title ? `${form.title}` : "Public form",
+  return createPageMetadata({
+    title: form?.title ? form.title : "Public form",
     description: form?.description || "Submit a public form response.",
-  };
+    path: `/f/${resolvedToken}`,
+    noindex: true,
+  });
 }
 
 export default async function PublicFormPage({ params }: { params: Promise<PageParams> }) {
   const resolvedParams = await params;
   const token = safeDecode(resolvedParams.token);
   const form = await loadPublicForm(token);
+
+  if (!form) {
+    notFound();
+  }
+
   const status = statusMessage(form);
 
   return (

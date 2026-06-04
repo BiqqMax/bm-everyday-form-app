@@ -4,11 +4,13 @@ import Link from 'next/link';
 import Card from '../../components/ui/Card';
 import Container from '../../components/layout/Container';
 import MainNav from '../../components/layout/MainNav';
+import { createBreadcrumbJsonLd, createPageMetadata, seoJsonLdScript } from '../../lib/seo';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = createPageMetadata({
   title: 'Privacy',
-  description: 'How Everyday Forms handles privacy, data use, and account information.',
-};
+  description: 'Read how Everyday Forms handles account information, form data, access, and data use.',
+  path: '/privacy',
+});
 
 const privacyPoints = [
   'Collect only what is needed to run the service',
@@ -40,8 +42,14 @@ function BulletList({ items }: { items: string[] }) {
 }
 
 export default function PrivacyPage() {
+  const breadcrumbJsonLd = createBreadcrumbJsonLd([
+    { name: 'Home', path: '/' },
+    { name: 'Privacy', path: '/privacy' },
+  ]);
+
   return (
     <div className="min-h-screen bg-background text-foreground">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: seoJsonLdScript(breadcrumbJsonLd) }} />
       <MainNav />
 
       <main>

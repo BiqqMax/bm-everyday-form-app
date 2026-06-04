@@ -5,11 +5,17 @@ import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
 import Container from '../../components/layout/Container';
 import MainNav from '../../components/layout/MainNav';
+import {
+  createBreadcrumbJsonLd,
+  createPageMetadata,
+  seoJsonLdScript,
+} from '../../lib/seo';
 
-export const metadata: Metadata = {
-  title: 'About',
-  description: 'A restrained overview of Everyday Forms, its product philosophy, and long-term direction.',
-};
+export const metadata: Metadata = createPageMetadata({
+  title: 'About Everyday Forms',
+  description: 'Learn about the product philosophy, design principles, and practical approach behind Everyday Forms.',
+  path: '/about',
+});
 
 const philosophyPoints = [
   'Clarity over decoration',
@@ -58,8 +64,14 @@ function BulletList({ items }: { items: string[] }) {
 }
 
 export default function AboutPage() {
+  const breadcrumbJsonLd = createBreadcrumbJsonLd([
+    { name: 'Home', path: '/' },
+    { name: 'About', path: '/about' },
+  ]);
+
   return (
     <div className="min-h-screen bg-background text-foreground">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: seoJsonLdScript(breadcrumbJsonLd) }} />
       <MainNav />
 
       <main>

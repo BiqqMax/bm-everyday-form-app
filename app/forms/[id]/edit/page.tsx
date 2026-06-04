@@ -7,6 +7,7 @@ import type { CreateFormWizardField } from "../../../../components/dashboard/Cre
 import { getPostAuthDestination } from "../../../../lib/auth/post-auth";
 import { DASHBOARD_ROUTE } from "../../../../lib/auth/flow";
 import { getDashboardData, type DashboardForm } from "../../../../lib/dashboard/dashboard";
+import { createPageMetadata } from "../../../../lib/seo";
 import { getServerSupabaseClient } from "../../../../lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -91,10 +92,12 @@ export async function generateMetadata({ params }: { params: Promise<PageParams>
   const { id } = await params;
   const form = await loadForm(id);
 
-  return {
-    title: form ? `${form.title} | Edit form` : "Edit form | Everyday Forms",
+  return createPageMetadata({
+    title: form ? `${form.title} | Edit form` : "Edit form",
     description: form ? `Edit ${form.title}` : "Edit an existing form.",
-  };
+    path: `/forms/${id}/edit`,
+    noindex: true,
+  });
 }
 
 export default async function EditFormPage({ params }: { params: Promise<PageParams> }) {
