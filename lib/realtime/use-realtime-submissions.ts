@@ -42,18 +42,65 @@ function formatAnswerValue(value: unknown): string {
 async function fetchSubmissionWithAnswers(
   submissionId: string
 ): Promise<DashboardSubmission | null> {
-  const [submissionResult, answersResult] = await Promise.all([
-    supabaseBrowser
-      .from("submissions")
-      .select("id,form_id,created_at,submitted_by_user_id")
-      .eq("id", submissionId)
-      .single(),
-    supabaseBrowser
+  const submissionResult = await supabaseBrowser
+    .from("submissions")
+    .select("id,form_id,created_at,submitted_by_user_id")
+    .eq("id", submissionId)
+    .single();
+
+  // Retry fetching answers — the realtime INSERT on submissions fires
+  // before submission_answers rows finish inserting in the submit route.
+  const MAX_ANSWERS_RETRIES = 5;
+  const ANSWERS_RETRY_DELAY_MS = 300;
+
+  let answersData: Array<{
+    id: string;
+    submission_id: string;
+    form_field_id: string;
+    answer_value: unknown;
+    created_at: string;
+  }> | null = null;
+
+  for (let attempt = 0; attempt < MAX_ANSWERS_RETRIES; attempt++) {
+    const result = await supabaseBrowser
       .from("submission_answers")
       .select("id,submission_id,form_field_id,answer_value,created_at")
       .eq("submission_id", submissionId)
-      .order("created_at", { ascending: false }),
-  ]);
+      .order("created_at", { ascending: false });
+
+    if (result.data && result.data.length > 0) {
+      answersData = result.data as Array<{
+        id: string;
+        submission_id: string;
+        form_field_id: string;
+        answer_value: unknown;
+        created_at: string;
+      }>;
+      break;
+    }
+
+    if (attempt < MAX_ANSWERS_RETRIES - 1) {
+      await new Promise((resolve) => setTimeout(resolve, ANSWERS_RETRY_DELAY_MS));
+    }
+  }
+
+  // If all retries exhausted with no data, do one final fetch to get whatever is there
+  if (!answersData) {
+    const finalResult = await supabaseBrowser
+      .from("submission_answers")
+      .select("id,submission_id,form_field_id,answer_value,created_at")
+      .eq("submission_id", submissionId)
+      .order("created_at", { ascending: false });
+    answersData = (finalResult.data ?? []) as Array<{
+      id: string;
+      submission_id: string;
+      form_field_id: string;
+      answer_value: unknown;
+      created_at: string;
+    }>;
+  }
+
+  const answersResult = { data: answersData };
 
   if (submissionResult.error || !submissionResult.data) {
     console.warn(
@@ -185,35 +232,39 @@ export function useRealtimeSubmissions(
       return;
     }
 
-    // Prevent duplicate handling
+    // Prevent duplicate handling of already-seen IDs
     if (seenIds.current.has(submissionId)) {
       console.log("[useRealtimeSubmissions] Duplicate submissionId, skipping");
       return;
     }
+
+    // Fetch full submission details BEFORE marking as seen,
+    // so a failed fetch will be retried on the next realtime event.
+    console.log("[useRealtimeSubmissions] Fetching full submission details for", submissionId);
+    const fullSubmission = await fetchSubmissionWithAnswers(submissionId);
+
+    if (!fullSubmission) {
+      console.warn("[useRealtimeSubmissions] Could not fetch full submission details — will retry on next event");
+      return;
+    }
+
+    // Only mark as seen after a successful fetch
     seenIds.current.add(submissionId);
 
     // Increment total count optimistically
     setTotalCount((prev) => prev + 1);
 
-    // Fetch full submission details
-    console.log("[useRealtimeSubmissions] Fetching full submission details for", submissionId);
-    const fullSubmission = await fetchSubmissionWithAnswers(submissionId);
-
-    if (fullSubmission) {
-      console.log("[useRealtimeSubmissions] Fetched submission, updating state", fullSubmission.id);
-      setLiveSubmissions((prev) => {
-        // Double-check dedup against current state
-        if (prev.some((s) => s.id === fullSubmission.id)) {
-          console.log("[useRealtimeSubmissions] Already in state, skipping");
-          return prev;
-        }
-        // Prepend to show newest first
-        console.log("[useRealtimeSubmissions] Prepending to state, new length:", prev.length + 1);
-        return [fullSubmission, ...prev];
-      });
-    } else {
-      console.warn("[useRealtimeSubmissions] Could not fetch full submission details");
-    }
+    console.log("[useRealtimeSubmissions] Fetched submission, updating state", fullSubmission.id);
+    setLiveSubmissions((prev) => {
+      // Double-check dedup against current state
+      if (prev.some((s) => s.id === fullSubmission.id)) {
+        console.log("[useRealtimeSubmissions] Already in state, skipping");
+        return prev;
+      }
+      // Prepend to show newest first
+      console.log("[useRealtimeSubmissions] Prepending to state, new length:", prev.length + 1);
+      return [fullSubmission, ...prev];
+    });
   }, []);
 
   useEffect(() => {
@@ -244,6 +295,17 @@ export function useRealtimeSubmissions(
         },
         (payload) => {
           handleInsert(payload as unknown as RealtimePayload);
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "submissions",
+        },
+        (payload) => {
+          console.log("[REALTIME_DEBUG_UNFILTERED]", payload);
         }
       )
       .subscribe((status) => {

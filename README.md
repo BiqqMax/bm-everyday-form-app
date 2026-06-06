@@ -44,6 +44,10 @@ npm run dev
 
 Open `http://localhost:3000`.
 
+## Project Status
+
+The current focus is wiring the Resend API to handle submission emails. This work is intended to ensure users receive notification emails after form responses are submitted.
+
 ## Project Structure
 
 ```text
@@ -59,6 +63,10 @@ public/
 - Use the public Supabase anon key in the client only
 - Keep service role keys server-side
 - Auth and ownership checks are enforced on the server
+
+## Contributing
+
+If you want to help, see `CONTRIBUTING.md` for contribution guidelines and current development focus.
 
 ## License
 

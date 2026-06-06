@@ -16,6 +16,7 @@ import type { SettingsData } from "../../lib/settings/data";
 import ShareModal from "./ShareModal";
 import { useDesktopTab } from "./DesktopTabContext";
 import { MobileSettingsPanel, WorkspaceSettings } from "./SettingsPanels";
+import { useRealtimeSubmissions } from "../../lib/realtime/use-realtime-submissions";
 
 type DashboardSource = DashboardData & Record<string, unknown>;
 type MobileTab = "home" | "forms" | "responses" | "settings";
@@ -1188,9 +1189,13 @@ function EditFormCard({
 function WorkspaceOverview({
   data,
   userEmail,
+  liveSubmissions,
+  totalSubmissionCount,
 }: {
   data: DashboardData;
   userEmail?: string | null;
+  liveSubmissions: DashboardSubmission[];
+  totalSubmissionCount: number;
 }) {
   const { setDesktopTab } = useDesktopTab();
   const source = data as DashboardSource;
@@ -1198,7 +1203,7 @@ function WorkspaceOverview({
   const greeting = hour < 12 ? "Good Morning" : hour < 18 ? "Good Afternoon" : "Good Evening";
   const displayName = firstText(source.name, source.fullName, userEmail ? userEmail.split("@")[0] : "", "User");
   const activeForms = data.forms.filter((form) => form.isPublic).length;
-  const recentResponses = data.recentSubmissions.slice(0, 2);
+  const recentResponses = useMemo(() => liveSubmissions.slice(0, 2), [liveSubmissions]);
 
   return (
     <div className="space-y-4">
@@ -1223,7 +1228,7 @@ function WorkspaceOverview({
           },
           {
             label: "Responses",
-            value: String(data.summary.totalSubmissions),
+            value: String(totalSubmissionCount),
             hint: "Collected so far",
           },
           {
@@ -1233,7 +1238,7 @@ function WorkspaceOverview({
           },
           {
             label: "Rate",
-            value: data.summary.totalForms ? `${averagePerForm(data.summary.totalSubmissions, data.summary.totalForms).toFixed(1)}x` : "0x",
+            value: data.summary.totalForms ? `${averagePerForm(totalSubmissionCount, data.summary.totalForms).toFixed(1)}x` : "0x",
             hint: "Per form",
           },
         ].map((stat) => (
@@ -1307,19 +1312,46 @@ function WorkspaceForms({
   onShareForm,
   onOpenCreateForm,
   onEditForm,
+  liveSubmissions,
 }: {
   data: DashboardData;
   onShareForm: (form: DashboardForm) => void;
   onOpenCreateForm: () => void;
   onEditForm: (form: DashboardForm) => void;
+  liveSubmissions: DashboardSubmission[];
 }) {
   const [query, setQuery] = useState("");
   const [visibilityFilter, setVisibilityFilter] = useState<FormVisibilityFilter>("all");
 
+  // Track the set of submission IDs that were already counted in form.submissionCount
+  // at mount time.  Only submissions that arrive *after* mount are added as a delta.
+  const initialSubmissionIdsRef = useRef<Set<string> | null>(null);
+  if (initialSubmissionIdsRef.current === null) {
+    initialSubmissionIdsRef.current = new Set(data.recentSubmissions.map((s) => s.id));
+  }
+
+  const formsWithLiveCounts = useMemo(() => {
+    const baselineIds = initialSubmissionIdsRef.current!;
+
+    // Count only NEW realtime submissions per form — those not in the server baseline.
+    const newCountByForm = new Map<string, number>();
+    for (const submission of liveSubmissions) {
+      if (!baselineIds.has(submission.id)) {
+        const formId = submission.formId;
+        newCountByForm.set(formId, (newCountByForm.get(formId) ?? 0) + 1);
+      }
+    }
+
+    return data.forms.map((form) => ({
+      ...form,
+      submissionCount: form.submissionCount + (newCountByForm.get(form.id) ?? 0),
+    }));
+  }, [data.forms, liveSubmissions]);
+
   const filteredForms = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
 
-    return data.forms.filter((form) => {
+    return formsWithLiveCounts.filter((form) => {
       const matchesQuery =
         !normalizedQuery ||
         form.title.toLowerCase().includes(normalizedQuery) ||
@@ -1332,7 +1364,7 @@ function WorkspaceForms({
 
       return matchesQuery && matchesVisibility;
     });
-  }, [data.forms, query, visibilityFilter]);
+  }, [formsWithLiveCounts, query, visibilityFilter]);
 
 
   return (
@@ -1364,11 +1396,11 @@ function WorkspaceForms({
   );
 }
 
-function WorkspaceResponses({ data }: { data: DashboardData }) {
+function WorkspaceResponses({ data, liveSubmissions, totalSubmissionCount }: { data: DashboardData; liveSubmissions: DashboardSubmission[]; totalSubmissionCount: number }) {
   const metrics = [
-    { label: "Total Responses", value: String(data.summary.totalSubmissions), hint: "All collected submissions" },
+    { label: "Total Responses", value: String(totalSubmissionCount), hint: "All collected submissions" },
     { label: "Recent Responses", value: String(data.summary.recentSubmissions), hint: "Latest response window" },
-    { label: "Average per Form", value: data.summary.totalForms ? averagePerForm(data.summary.totalSubmissions, data.summary.totalForms).toFixed(1) : "0", hint: "Responses divided by forms" },
+    { label: "Average per Form", value: data.summary.totalForms ? averagePerForm(totalSubmissionCount, data.summary.totalForms).toFixed(1) : "0", hint: "Responses divided by forms" },
   ];
 
   return (
@@ -1377,7 +1409,7 @@ function WorkspaceResponses({ data }: { data: DashboardData }) {
         eyebrow="Responses"
         title="Recent activity"
         description="A focused response feed surfaces the latest submissions and keeps the review flow calm."
-        meta={data.recentSubmissions.length ? `${data.recentSubmissions.length} latest submission${data.recentSubmissions.length === 1 ? "" : "s"}` : "No activity yet"}
+        meta={liveSubmissions.length ? `${liveSubmissions.length} latest submission${liveSubmissions.length === 1 ? "" : "s"}` : "No activity yet"}
       />
 
       <div className="grid gap-3 sm:grid-cols-3">
@@ -1390,14 +1422,14 @@ function WorkspaceResponses({ data }: { data: DashboardData }) {
         <Card className="border-[var(--border)] bg-[var(--surface)] p-5 shadow-none">
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">Activity feed</p>
           <div className="mt-4">
-            <SubmissionsList submissions={data.recentSubmissions} />
+            <SubmissionsList submissions={liveSubmissions} />
           </div>
         </Card>
 
         <div className="space-y-4">
           <SectionHeader eyebrow="Preview" title="Response preview" description="A compact glance at the latest submission." />
-          {data.recentSubmissions[0] ? (
-            <SubmissionPreviewCard submission={data.recentSubmissions[0]} />
+          {liveSubmissions[0] ? (
+            <SubmissionPreviewCard submission={liveSubmissions[0]} />
           ) : (
             <EmptyState
               title="Nothing to preview yet"
@@ -1426,6 +1458,24 @@ export default function Dashboard({
   const [createFormOpen, setCreateFormOpen] = useState(false);
   const [createFormKey, setCreateFormKey] = useState(0);
   const source = data as DashboardSource;
+
+  const formIds = data.forms.map((form) => form.id);
+  const { liveSubmissions, totalSubmissionCount } = useRealtimeSubmissions(
+    data.recentSubmissions,
+    formIds,
+    data.summary.totalSubmissions,
+  );
+
+  console.log("[REALTIME_HOOK_INITIALIZED]", {
+    liveSubmissionsLength: liveSubmissions.length,
+    totalSubmissionCount,
+    formIdsCount: formIds.length,
+  });
+
+  console.log("[REALTIME_HOOK_STATE]", {
+    liveSubmissionsLength: liveSubmissions.length,
+    totalSubmissionCount,
+  });
 
   const displayName = firstText(
     source.displayName,
@@ -1501,14 +1551,19 @@ export default function Dashboard({
         <div className="space-y-3.5 px-4 py-4 pb-18 sm:px-6 sm:py-6 lg:px-8 lg:py-7">
           {desktopTab === "overview" ? (
             <div id="overview" className="hidden md:block">
-              <WorkspaceOverview data={data} userEmail={userEmail} />
+              <WorkspaceOverview
+                data={data}
+                userEmail={userEmail}
+                liveSubmissions={liveSubmissions}
+                totalSubmissionCount={totalSubmissionCount}
+              />
             </div>
           ) : (
             <div id="workspace" className="hidden md:block space-y-3.5">
               {desktopTab === "forms" ? (
-                <WorkspaceForms data={data} onShareForm={handleShareForm} onOpenCreateForm={handleOpenCreateForm} onEditForm={handleEditForm} />
+                <WorkspaceForms data={data} onShareForm={handleShareForm} onOpenCreateForm={handleOpenCreateForm} onEditForm={handleEditForm} liveSubmissions={liveSubmissions} />
               ) : desktopTab === "responses" ? (
-                <WorkspaceResponses data={data} />
+                <WorkspaceResponses data={data} liveSubmissions={liveSubmissions} totalSubmissionCount={totalSubmissionCount} />
               ) : (
                 <WorkspaceSettings settings={settings} />
               )}
@@ -1517,11 +1572,11 @@ export default function Dashboard({
 
           <div className="space-y-4 md:hidden">
             {mobileTab === "home" ? (
-              <MobileHomePanel data={data} displayName={displayName} onTabChange={handleMobileTabChange} />
+              <MobileHomePanel data={data} displayName={displayName} liveSubmissions={liveSubmissions} totalSubmissionCount={totalSubmissionCount} onTabChange={handleMobileTabChange} />
             ) : mobileTab === "forms" ? (
-              <MobileFormsPanel data={data} onShareForm={handleShareForm} onOpenCreateForm={handleOpenCreateForm} onEditForm={handleEditForm} />
-            ) : mobileTab === "responses" ? (
-              <MobileResponsesPanel data={data} />
+              <MobileFormsPanel data={data} onShareForm={handleShareForm} onOpenCreateForm={handleOpenCreateForm} onEditForm={handleEditForm} liveSubmissions={liveSubmissions} />
+              ) : mobileTab === "responses" ? (
+              <MobileResponsesPanel data={data} liveSubmissions={liveSubmissions} totalSubmissionCount={totalSubmissionCount} />
             ) : (
               <MobileSettingsPanel settings={settings} />
             )}
@@ -1597,10 +1652,14 @@ function MobileTabBar({
 function MobileHomePanel({
   data,
   displayName,
+  liveSubmissions,
+  totalSubmissionCount,
   onTabChange,
 }: {
   data: DashboardData;
   displayName: string;
+  liveSubmissions: DashboardSubmission[];
+  totalSubmissionCount: number;
   onTabChange: (tab: MobileTab) => void;
 }) {
   const source = data as DashboardSource;
@@ -1608,7 +1667,7 @@ function MobileHomePanel({
   const greeting = hour < 12 ? "Good Morning" : hour < 18 ? "Good Afternoon" : "Good Evening";
   const userName = displayName !== "Dashboard" ? displayName : firstText(source.name, source.fullName, "User");
   const activeForms = data.forms.filter((form) => form.isPublic).length;
-  const recentResponses = data.recentSubmissions.slice(0, 2);
+  const recentResponses = useMemo(() => liveSubmissions.slice(0, 2), [liveSubmissions]);
 
   return (
     <div className="space-y-4">
@@ -1633,7 +1692,7 @@ function MobileHomePanel({
           },
           {
             label: "Responses",
-            value: String(data.summary.totalSubmissions),
+            value: String(totalSubmissionCount),
             hint: "Collected so far",
           },
           {
@@ -1643,7 +1702,7 @@ function MobileHomePanel({
           },
           {
             label: "Rate",
-            value: data.summary.totalForms ? `${averagePerForm(data.summary.totalSubmissions, data.summary.totalForms).toFixed(1)}x` : "0x",
+            value: data.summary.totalForms ? `${averagePerForm(totalSubmissionCount, data.summary.totalForms).toFixed(1)}x` : "0x",
             hint: "Per form",
           },
         ].map((stat) => (
@@ -1716,19 +1775,46 @@ function MobileFormsPanel({
   onShareForm,
   onOpenCreateForm,
   onEditForm,
+  liveSubmissions,
 }: {
   data: DashboardData;
   onShareForm: (form: DashboardForm) => void;
   onOpenCreateForm: () => void;
   onEditForm: (form: DashboardForm) => void;
+  liveSubmissions: DashboardSubmission[];
 }) {
   const [query, setQuery] = useState("");
   const [visibilityFilter, setVisibilityFilter] = useState<FormVisibilityFilter>("all");
 
+  // Track the set of submission IDs that were already counted in form.submissionCount
+  // at mount time.  Only submissions that arrive *after* mount are added as a delta.
+  const initialSubmissionIdsRef = useRef<Set<string> | null>(null);
+  if (initialSubmissionIdsRef.current === null) {
+    initialSubmissionIdsRef.current = new Set(data.recentSubmissions.map((s) => s.id));
+  }
+
+  const formsWithLiveCounts = useMemo(() => {
+    const baselineIds = initialSubmissionIdsRef.current!;
+
+    // Count only NEW realtime submissions per form — those not in the server baseline.
+    const newCountByForm = new Map<string, number>();
+    for (const submission of liveSubmissions) {
+      if (!baselineIds.has(submission.id)) {
+        const formId = submission.formId;
+        newCountByForm.set(formId, (newCountByForm.get(formId) ?? 0) + 1);
+      }
+    }
+
+    return data.forms.map((form) => ({
+      ...form,
+      submissionCount: form.submissionCount + (newCountByForm.get(form.id) ?? 0),
+    }));
+  }, [data.forms, liveSubmissions]);
+
   const filteredForms = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
 
-    return data.forms.filter((form) => {
+    return formsWithLiveCounts.filter((form) => {
       const matchesQuery =
         !normalizedQuery ||
         form.title.toLowerCase().includes(normalizedQuery) ||
@@ -1741,7 +1827,7 @@ function MobileFormsPanel({
 
       return matchesQuery && matchesVisibility;
     });
-  }, [data.forms, query, visibilityFilter]);
+  }, [formsWithLiveCounts, query, visibilityFilter]);
 
 
   return (
@@ -1773,8 +1859,8 @@ function MobileFormsPanel({
   );
 }
 
-function MobileResponsesPanel({ data }: { data: DashboardData }) {
-  const average = averagePerForm(data.summary.totalSubmissions, data.summary.totalForms);
+function MobileResponsesPanel({ data, liveSubmissions, totalSubmissionCount }: { data: DashboardData; liveSubmissions: DashboardSubmission[]; totalSubmissionCount: number }) {
+  const average = averagePerForm(totalSubmissionCount, data.summary.totalForms);
 
   return (
     <div className="space-y-6">
@@ -1784,7 +1870,7 @@ function MobileResponsesPanel({ data }: { data: DashboardData }) {
         description="Recent submissions are summarized in a focused response feed that keeps the review flow calm."
       />
       <div className="grid gap-3 sm:grid-cols-3">
-        <CompactStat label="Total Responses" value={String(data.summary.totalSubmissions)} hint="All collected submissions" />
+        <CompactStat label="Total Responses" value={String(totalSubmissionCount)} hint="All collected submissions" />
         <CompactStat label="Recent Responses" value={String(data.summary.recentSubmissions)} hint="Latest response window" />
         <CompactStat
           label="Average per Form"
@@ -1797,14 +1883,14 @@ function MobileResponsesPanel({ data }: { data: DashboardData }) {
         <Card className="border-[var(--border)] bg-[var(--surface)] p-5 shadow-[0_8px_24px_rgba(15,23,42,0.03)]">
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">Activity feed</p>
           <div className="mt-4">
-            <SubmissionsList submissions={data.recentSubmissions} />
+            <SubmissionsList submissions={liveSubmissions} />
           </div>
         </Card>
 
         <div className="space-y-4">
           <SectionHeader eyebrow="Preview" title="Response preview" description="A compact glance at the latest submission." />
-          {data.recentSubmissions[0] ? (
-            <SubmissionPreviewCard submission={data.recentSubmissions[0]} />
+          {liveSubmissions[0] ? (
+            <SubmissionPreviewCard submission={liveSubmissions[0]} />
           ) : (
             <EmptyState
               title="Nothing to preview yet"
