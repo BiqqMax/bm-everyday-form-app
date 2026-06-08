@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "../supabase/browser";
 import type { DashboardSubmission } from "../dashboard/dashboard";
-
 type RealtimePayload = {
   eventType: "INSERT" | "UPDATE" | "DELETE";
   new: Record<string, unknown>;
@@ -247,6 +246,63 @@ export function useRealtimeSubmissions(
       console.warn("[useRealtimeSubmissions] Could not fetch full submission details — will retry on next event");
       return;
     }
+
+    // Fire-and-forget: send email notification to the form owner
+    // via the Supabase Edge Function — do not await, must not block the UI.
+    void (async () => {
+      try {
+        // Lookup owner email: formId → forms.owner_id → profiles.email
+        const { data: formData, error: formError } = await supabaseBrowser
+          .from("forms")
+          .select("owner_id")
+          .eq("id", fullSubmission.formId)
+          .single();
+
+        if (formError || !formData?.owner_id) {
+          console.warn(
+            "[useRealtimeSubmissions] Could not find form owner for email notification",
+            formError
+          );
+          return;
+        }
+
+        const { data: profileData, error: profileError } = await supabaseBrowser
+          .from("profiles")
+          .select("email")
+          .eq("id", formData.owner_id)
+          .single();
+
+        if (profileError || !profileData?.email) {
+          console.warn(
+            "[useRealtimeSubmissions] Could not find owner email for notification",
+            profileError
+          );
+          return;
+        }
+
+        const emailAnswers = fullSubmission.answers.map((a) => ({
+          fieldId: a.fieldId,
+          label: a.fieldLabel,
+          value: a.value,
+        }));
+
+        void fetch('/api/send-submission-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            submissionId: fullSubmission.id,
+            formTitle: fullSubmission.formTitle,
+            answers: emailAnswers,
+            ownerEmail: profileData.email,
+          }),
+        })
+          .then(r => r.json())
+          .then(console.log)
+          .catch(console.error);
+      } catch (err) {
+        console.error("[useRealtimeSubmissions] Failed to send submission email:", err);
+      }
+    })();
 
     // Only mark as seen after a successful fetch
     seenIds.current.add(submissionId);

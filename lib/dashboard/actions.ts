@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { getFriendlyActionMessage } from "../utils/friendly-error";
 import { getServerSupabaseClient } from "../supabase/server";
 import { generateUniqueShortToken } from "../forms/token";
+import { getDashboardData, type DashboardData } from "./dashboard";
 
 export type DashboardActionState = {
   status: "idle" | "success" | "error";
@@ -440,5 +441,20 @@ export async function deleteFormAction(_: DashboardActionState, formData: FormDa
       status: "error",
       message: getFriendlyActionMessage(error),
     };
+  }
+}
+
+/**
+ * Server action that re-fetches the current user's dashboard data.
+ * Used by the client-side fallback refresh hook to silently reconcile
+ * dashboard state when realtime may have disconnected.
+ */
+export async function refreshDashboardAction(): Promise<DashboardData | null> {
+  try {
+    const { supabase, user } = await getAuthenticatedUser();
+    return await getDashboardData(supabase, user.id);
+  } catch (error) {
+    console.error("[refreshDashboardAction] Failed", error);
+    return null;
   }
 }

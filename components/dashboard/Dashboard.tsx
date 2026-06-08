@@ -17,6 +17,8 @@ import ShareModal from "./ShareModal";
 import { useDesktopTab } from "./DesktopTabContext";
 import { MobileSettingsPanel, WorkspaceSettings } from "./SettingsPanels";
 import { useRealtimeSubmissions } from "../../lib/realtime/use-realtime-submissions";
+import { useDashboardFallbackRefresh } from "../../lib/dashboard/use-dashboard-fallback-refresh";
+import { refreshDashboardAction } from "../../lib/dashboard/actions";
 
 type DashboardSource = DashboardData & Record<string, unknown>;
 type MobileTab = "home" | "forms" | "responses" | "settings";
@@ -1459,6 +1461,18 @@ export default function Dashboard({
   const [createFormKey, setCreateFormKey] = useState(0);
   const source = data as DashboardSource;
 
+  const [dashboardData, setDashboardData] = useState<DashboardData>(data);
+
+  const refreshDashboard = async () => {
+    const freshData = await refreshDashboardAction();
+
+    if (freshData) {
+      setDashboardData(freshData);
+    }
+  };
+
+  useDashboardFallbackRefresh(refreshDashboard);
+
   const formIds = data.forms.map((form) => form.id);
   const { liveSubmissions, totalSubmissionCount } = useRealtimeSubmissions(
     data.recentSubmissions,
@@ -1552,7 +1566,7 @@ export default function Dashboard({
           {desktopTab === "overview" ? (
             <div id="overview" className="hidden md:block">
               <WorkspaceOverview
-                data={data}
+                data={dashboardData}
                 userEmail={userEmail}
                 liveSubmissions={liveSubmissions}
                 totalSubmissionCount={totalSubmissionCount}
@@ -1561,9 +1575,9 @@ export default function Dashboard({
           ) : (
             <div id="workspace" className="hidden md:block space-y-3.5">
               {desktopTab === "forms" ? (
-                <WorkspaceForms data={data} onShareForm={handleShareForm} onOpenCreateForm={handleOpenCreateForm} onEditForm={handleEditForm} liveSubmissions={liveSubmissions} />
+                <WorkspaceForms data={dashboardData} onShareForm={handleShareForm} onOpenCreateForm={handleOpenCreateForm} onEditForm={handleEditForm} liveSubmissions={liveSubmissions} />
               ) : desktopTab === "responses" ? (
-                <WorkspaceResponses data={data} liveSubmissions={liveSubmissions} totalSubmissionCount={totalSubmissionCount} />
+                <WorkspaceResponses data={dashboardData} liveSubmissions={liveSubmissions} totalSubmissionCount={totalSubmissionCount} />
               ) : (
                 <WorkspaceSettings settings={settings} />
               )}
@@ -1572,11 +1586,11 @@ export default function Dashboard({
 
           <div className="space-y-4 md:hidden">
             {mobileTab === "home" ? (
-              <MobileHomePanel data={data} displayName={displayName} liveSubmissions={liveSubmissions} totalSubmissionCount={totalSubmissionCount} onTabChange={handleMobileTabChange} />
+              <MobileHomePanel data={dashboardData} displayName={displayName} liveSubmissions={liveSubmissions} totalSubmissionCount={totalSubmissionCount} onTabChange={handleMobileTabChange} />
             ) : mobileTab === "forms" ? (
-              <MobileFormsPanel data={data} onShareForm={handleShareForm} onOpenCreateForm={handleOpenCreateForm} onEditForm={handleEditForm} liveSubmissions={liveSubmissions} />
+              <MobileFormsPanel data={dashboardData} onShareForm={handleShareForm} onOpenCreateForm={handleOpenCreateForm} onEditForm={handleEditForm} liveSubmissions={liveSubmissions} />
               ) : mobileTab === "responses" ? (
-              <MobileResponsesPanel data={data} liveSubmissions={liveSubmissions} totalSubmissionCount={totalSubmissionCount} />
+              <MobileResponsesPanel data={dashboardData} liveSubmissions={liveSubmissions} totalSubmissionCount={totalSubmissionCount} />
             ) : (
               <MobileSettingsPanel settings={settings} />
             )}
