@@ -1561,7 +1561,7 @@ export default function Dashboard({
   return (
     <DashboardToastProvider>
       <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
-        <div className="space-y-3.5 px-4 py-4 pb-18 sm:px-6 sm:py-6 lg:px-8 lg:py-7">
+        <div className="space-y-3.5 py-4 pb-18 sm:py-6 lg:py-7">
           {desktopTab === "overview" ? (
             <div id="overview" className="hidden md:block">
               <WorkspaceOverview
