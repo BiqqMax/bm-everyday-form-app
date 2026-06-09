@@ -7,6 +7,7 @@ export type SettingsData = {
     displayName: string;
     email: string;
     accountType: "individual" | "organization";
+    avatarUrl: string | null;
   };
   defaults: {
     defaultExpiryMinutes: number | null;
@@ -33,6 +34,7 @@ export type SettingsData = {
 
 type SettingsProfileRow = {
   display_name: string | null;
+  avatar_url: string | null;
   email: string;
   account_type: string;
   default_expiry_minutes: number | null;
@@ -56,7 +58,7 @@ export async function getSettingsData(supabase: SupabaseClient, userId: string):
     supabase
       .from("profiles")
       .select(
-        "display_name,email,account_type,default_expiry_minutes,default_response_limit,default_publish_state,enable_qr_generation,auto_generate_share_links,enable_email_alerts,allow_anonymous_submissions,restrict_multiple_submissions,require_email_validation"
+        "display_name,avatar_url,email,account_type,default_expiry_minutes,default_response_limit,default_publish_state,enable_qr_generation,auto_generate_share_links,enable_email_alerts,allow_anonymous_submissions,restrict_multiple_submissions,require_email_validation"
       )
       .eq("id", userId)
       .maybeSingle(),
@@ -74,6 +76,7 @@ export async function getSettingsData(supabase: SupabaseClient, userId: string):
       displayName: profile?.display_name ?? "",
       email: profile?.email ?? "",
       accountType: profile?.account_type === "organization" ? "organization" : "individual",
+      avatarUrl: profile?.avatar_url ?? null,
     },
     defaults: {
       defaultExpiryMinutes: profile?.default_expiry_minutes ?? null,

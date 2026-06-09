@@ -14,9 +14,11 @@ const HIDDEN_FOOTER_PATHS = [
   "/signup",
   "/forgot-password",
   "/reset-password",
+  "/f/",
 ] as const;
 
 function shouldHideFooter(pathname: string) {
+  if (pathname.startsWith("/f/")) return true;
   return HIDDEN_FOOTER_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
 }
 

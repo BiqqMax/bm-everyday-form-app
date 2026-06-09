@@ -5,6 +5,12 @@ import { revalidatePath } from "next/cache";
 import { getFriendlyActionMessage } from "../utils/friendly-error";
 import { getServerSupabaseClient } from "../supabase/server";
 
+export type AvatarActionState = {
+  status: "idle" | "success" | "error";
+  message: string;
+  avatarUrl?: string | null;
+};
+
 export type SettingsActionState = {
   status: "idle" | "success" | "error";
   message: string;
@@ -81,6 +87,37 @@ export async function updateSettingsAction(formData: FormData): Promise<Settings
     return {
       status: "success",
       message: "Settings saved.",
+    };
+  } catch (error) {
+    return {
+      status: "error",
+      message: getFriendlyActionMessage(error),
+    };
+  }
+}
+
+export async function updateAvatarAction(avatarUrl: string): Promise<AvatarActionState> {
+  try {
+    const { supabase, user } = await getAuthenticatedUser();
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ avatar_url: avatarUrl, updated_at: new Date().toISOString() })
+      .eq("id", user.id);
+
+    if (error) {
+      return {
+        status: "error",
+        message: getFriendlyActionMessage(error),
+      };
+    }
+
+    revalidatePath("/dashboard");
+
+    return {
+      status: "success",
+      message: "Avatar updated.",
+      avatarUrl,
     };
   } catch (error) {
     return {

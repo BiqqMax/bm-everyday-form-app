@@ -1200,10 +1200,9 @@ function WorkspaceOverview({
   totalSubmissionCount: number;
 }) {
   const { setDesktopTab } = useDesktopTab();
-  const source = data as DashboardSource;
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good Morning" : hour < 18 ? "Good Afternoon" : "Good Evening";
-  const displayName = firstText(source.name, source.fullName, userEmail ? userEmail.split("@")[0] : "", "User");
+  const displayName = firstText(data.displayName, userEmail ? userEmail.split("@")[0] : "", "User");
   const activeForms = data.forms.filter((form) => form.isPublic).length;
   const recentResponses = useMemo(() => liveSubmissions.slice(0, 2), [liveSubmissions]);
 

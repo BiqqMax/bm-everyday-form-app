@@ -81,6 +81,7 @@ export type DashboardSummary = {
 };
 
 export type DashboardData = {
+  displayName: string | null;
   forms: DashboardForm[];
   recentSubmissions: DashboardSubmission[];
   summary: DashboardSummary;
@@ -169,8 +170,18 @@ export async function getDashboardData(supabase: SupabaseClient, userId: string)
 
   const forms = (formsResult.data ?? []) as DashboardFormRow[];
 
+  console.log("[DASHBOARD] file=lib/dashboard/dashboard.ts function=getDashboardData query=profiles table=profiles user_id");
+  const profileResult = await supabase
+    .from("profiles")
+    .select("display_name")
+    .eq("id", userId)
+    .maybeSingle();
+  console.log("[DASHBOARD] file=lib/dashboard/dashboard.ts function=getDashboardData query=profiles table=profiles success");
+  const displayName = (profileResult.data as { display_name: string | null } | null)?.display_name ?? null;
+
   if (forms.length === 0) {
     return {
+      displayName,
       forms: [],
       recentSubmissions: [],
       summary: {
@@ -286,6 +297,7 @@ export async function getDashboardData(supabase: SupabaseClient, userId: string)
   });
 
   return {
+    displayName,
     forms: dashboardForms,
     recentSubmissions,
     summary: {

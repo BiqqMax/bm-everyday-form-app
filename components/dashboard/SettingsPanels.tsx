@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState, type ReactNode } from "react";
+import { useActionState, useCallback, useRef, useState, type ReactNode } from "react";
 
-import { updateSettingsAction, type SettingsActionState } from "../../lib/settings/actions";
+import { updateAvatarAction, updateSettingsAction, type AvatarActionState, type SettingsActionState } from "../../lib/settings/actions";
 import type { SettingsData } from "../../lib/settings/data";
+import { createClient } from "../../lib/supabase/browser";
 import Button from "../ui/Button";
 import Card from "../ui/Card";
 
@@ -37,6 +38,153 @@ function SectionCard({
         {children}
       </div>
     </Card>
+  );
+}
+
+function AvatarPreview({
+  avatarUrl,
+  displayName,
+}: {
+  avatarUrl: string | null;
+  displayName: string | null;
+}) {
+  if (avatarUrl) {
+    return (
+      <img
+        src={avatarUrl}
+        alt={displayName ?? "User avatar"}
+        className="w-20 h-20 rounded-full object-cover border-2 border-[var(--border)]"
+      />
+    );
+  }
+
+  const initials = (displayName || "U")
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase();
+
+  return (
+    <div className="w-20 h-20 rounded-full bg-[var(--accent)] text-white flex items-center justify-center text-lg font-semibold border-2 border-[var(--border)]">
+      {initials}
+    </div>
+  );
+}
+
+function AvatarUpload({
+  avatarUrl,
+  displayName,
+}: {
+  avatarUrl: string | null;
+  displayName: string | null;
+}) {
+  const [isUploading, setIsUploading] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(avatarUrl);
+  const [avatarState, setAvatarState] = useState<AvatarActionState>({
+    status: "idle",
+    message: "",
+  });
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleFileChange = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      setIsUploading(true);
+      setAvatarState({ status: "idle", message: "" });
+
+      try {
+        const supabase = createClient();
+
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          throw new Error("Please sign in again to continue.");
+        }
+
+        const filePath = `${user.id}/avatar-${Date.now()}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("avatars")
+          .upload(filePath, file, { upsert: true });
+
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage
+          .from("avatars")
+          .getPublicUrl(filePath);
+
+        const publicUrl = urlData.publicUrl;
+
+        const result = await updateAvatarAction(publicUrl);
+
+        if (result.status === "error") {
+          throw new Error(result.message);
+        }
+
+        setPreviewUrl(publicUrl);
+        setAvatarState({
+          status: "success",
+          message: "Avatar updated.",
+          avatarUrl: publicUrl,
+        });
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Failed to upload avatar.";
+        setAvatarState({ status: "error", message });
+      } finally {
+        setIsUploading(false);
+        // Reset input so the same file can be selected again
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
+      }
+    },
+    [],
+  );
+
+  return (
+    <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
+      <AvatarPreview avatarUrl={previewUrl} displayName={displayName} />
+
+      <div className="flex flex-col items-center gap-3 sm:items-start">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={isUploading}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {isUploading ? "Uploading..." : "Upload photo"}
+          </Button>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+        </div>
+
+        {avatarState.status !== "idle" && avatarState.message && (
+          <p
+            className={joinClasses(
+              "text-sm font-medium",
+              avatarState.status === "error"
+                ? "text-[#7f1d1d]"
+                : "text-[var(--accent)]",
+            )}
+          >
+            {avatarState.message}
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -130,6 +278,17 @@ function SettingsForm({ settings }: SettingsPanelProps) {
 
   return (
     <form action={formAction} className="grid gap-4 lg:grid-cols-2">
+      <SectionCard
+        eyebrow="Profile"
+        title="Profile avatar"
+        description="Upload a photo to personalize your public form header."
+      >
+        <AvatarUpload
+          avatarUrl={settings.account.avatarUrl}
+          displayName={settings.account.displayName}
+        />
+      </SectionCard>
+
       <SectionCard
         eyebrow="Account"
         title="Account details"

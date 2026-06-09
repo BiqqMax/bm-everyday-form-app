@@ -1,4 +1,4 @@
-import { Resend } from "npm:resend";
+import { Resend } from "npm:resend@4.1.2";
 
 interface SubmissionAnswer {
   fieldId: string;
@@ -14,16 +14,6 @@ interface EmailRequestBody {
   dashboardUrl?: string;
 }
 
-/** Escape HTML special characters to prevent injection. */
-function escapeHtml(raw: string): string {
-  return raw
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-
 function buildEmailHtml(
   formTitle: string,
   answers: SubmissionAnswer[],
@@ -32,12 +22,9 @@ function buildEmailHtml(
   const answerRows = answers
     .filter((a) => a.label.trim() !== "")
     .map((a) => {
-      const escapedLabel = escapeHtml(a.label);
-      // Preserve line breaks in long answers
-      const escapedValue = escapeHtml(a.value).replace(/\n/g, "<br>");
       return `<tr>
-        <td style="padding:10px 14px;border-bottom:1px solid #eaeaea;font-weight:600;color:#1a1a2e;vertical-align:top;width:35%">${escapedLabel}</td>
-        <td style="padding:10px 14px;border-bottom:1px solid #eaeaea;color:#444;vertical-align:top;white-space:pre-wrap">${escapedValue}</td>
+        <td style="padding:10px 14px;border-bottom:1px solid #eaeaea;font-weight:600;color:#1a1a2e;vertical-align:top;width:35%">${a.label}</td>
+        <td style="padding:10px 14px;border-bottom:1px solid #eaeaea;color:#444;vertical-align:top;white-space:pre-wrap">${a.value}</td>
       </tr>`;
     })
     .join("");
@@ -46,7 +33,7 @@ function buildEmailHtml(
     ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:28px">
         <tr>
           <td align="center">
-            <a href="${escapeHtml(dashboardUrl)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#1a1a2e;color:#ffffff;font-size:14px;font-weight:600;padding:12px 28px;border-radius:6px;text-decoration:none">View in Dashboard</a>
+            <a href="${dashboardUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#1a1a2e;color:#ffffff;font-size:14px;font-weight:600;padding:12px 28px;border-radius:6px;text-decoration:none">View in Dashboard</a>
           </td>
         </tr>
       </table>`
@@ -72,7 +59,7 @@ function buildEmailHtml(
           <!-- Body -->
           <tr>
             <td style="padding:32px">
-              <p style="margin:0 0 8px;font-size:16px;color:#1a1a2e;font-weight:600">${escapeHtml(formTitle)}</p>
+              <p style="margin:0 0 8px;font-size:16px;color:#1a1a2e;font-weight:600">${formTitle}</p>
               <p style="margin:0 0 24px;font-size:15px;color:#555;line-height:1.5">You have received a new response for this form.</p>
 
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">

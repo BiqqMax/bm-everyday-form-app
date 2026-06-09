@@ -15,8 +15,9 @@ type PageParams = {
 
 type PublicFormRow = NonNullable<Awaited<ReturnType<typeof getFormByPublicToken>>>;
 type PublicFormField = PublicFormView["fields"][number];
-type ProfileRow = {
+type UserRow = {
   display_name: string | null;
+  avatar_url?: string | null;
 };
 
 function safeDecode(value: string) {
@@ -29,14 +30,15 @@ function safeDecode(value: string) {
 
 function toPublicFormView(
   form: PublicFormRow,
-  ownerDisplayName: string | null,
+  owner: UserRow | null,
   fields: PublicFormField[],
 ): PublicFormView {
   return {
     id: form.id,
     title: form.title,
     description: form.description,
-    displayName: ownerDisplayName ?? "",
+    displayName: owner?.display_name ?? "",
+    avatarUrl: owner?.avatar_url ?? null,
     qrShareToken: form.qr_share_token,
     fields,
     isPublished: form.is_public,
@@ -92,8 +94,8 @@ async function loadPublicForm(token: string): Promise<PublicFormView | null> {
       return null;
     }
 
-    const [profileResult, fieldsResult] = await Promise.all([
-      supabase.from("profiles").select("display_name").eq("id", form.owner_id).maybeSingle(),
+    const [ownerResult, fieldsResult] = await Promise.all([
+      supabase.from("profiles").select("display_name,avatar_url").eq("id", form.owner_id).maybeSingle(),
       supabase
         .from("form_fields")
         .select("id,label,field_type,is_required,options,position")
@@ -101,15 +103,15 @@ async function loadPublicForm(token: string): Promise<PublicFormView | null> {
         .order("position", { ascending: true }),
     ]);
 
-    if (profileResult.error) {
-      throw profileResult.error;
+    if (ownerResult.error) {
+      throw ownerResult.error;
     }
 
     if (fieldsResult.error) {
       throw fieldsResult.error;
     }
 
-    const profile = profileResult.data as ProfileRow | null;
+    const owner = ownerResult.data as UserRow | null;
     const fields = (fieldsResult.data ?? []).map((field) => ({
       id: field.id,
       label: field.label,
@@ -119,7 +121,7 @@ async function loadPublicForm(token: string): Promise<PublicFormView | null> {
       position: field.position,
     }));
 
-    return toPublicFormView(form, profile?.display_name ?? null, fields);
+    return toPublicFormView(form, owner, fields);
   } catch {
     return null;
   }
@@ -138,6 +140,18 @@ export async function generateMetadata({ params }: { params: Promise<PageParams>
   });
 }
 
+function StatusBlock({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
+      <h2 className="text-lg font-semibold text-amber-950">{title}</h2>
+      <p className="mt-2 text-sm leading-6 text-amber-900">{description}</p>
+      <p className="mt-4 text-sm text-amber-800">
+        Please check the link with the form owner or try again later.
+      </p>
+    </div>
+  );
+}
+
 export default async function PublicFormPage({ params }: { params: Promise<PageParams> }) {
   const resolvedParams = await params;
   const token = safeDecode(resolvedParams.token);
@@ -150,32 +164,20 @@ export default async function PublicFormPage({ params }: { params: Promise<PageP
   const status = statusMessage(form);
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-100 text-slate-900">
-      <div className="mx-auto flex min-h-screen w-full max-w-4xl items-center px-4 py-10 sm:px-6 lg:px-8">
-        <div className="w-full overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
-          <div className="border-b border-slate-100 bg-gradient-to-r from-slate-900 to-slate-700 px-6 py-8 text-white sm:px-10">
-            <p className="text-sm font-medium uppercase tracking-[0.2em] text-slate-300">Public response</p>
-            <h1 className="mt-2 text-2xl font-semibold sm:text-3xl">{form?.title ?? "Public form"}</h1>
-            {form?.description ? <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-200 sm:text-base">{form.description}</p> : null}
+    <main className="min-h-screen bg-white dark:bg-[#06140F] text-neutral-900 dark:text-neutral-100">
+      <div className="mx-auto flex min-h-screen w-full max-w-[600px] flex-col px-4 py-8 sm:py-10">
+        {status ? (
+          <StatusBlock title={status.title} description={status.description} />
+        ) : form ? (
+          <PublicFormClient form={form} />
+        ) : (
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6">
+            <h2 className="text-lg font-semibold text-rose-950">We couldn't load this form</h2>
+            <p className="mt-2 text-sm leading-6 text-rose-900">
+              The link may be incorrect, expired, or no longer available.
+            </p>
           </div>
-
-          <div className="px-6 py-8 sm:px-10 sm:py-10">
-            {status ? (
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
-                <h2 className="text-lg font-semibold text-amber-950">{status.title}</h2>
-                <p className="mt-2 text-sm leading-6 text-amber-900">{status.description}</p>
-                <p className="mt-4 text-sm text-amber-800">Please check the link with the form owner or try again later.</p>
-              </div>
-            ) : form ? (
-              <PublicFormClient form={form} />
-            ) : (
-              <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6">
-                <h2 className="text-lg font-semibold text-rose-950">We couldn't load this form</h2>
-                <p className="mt-2 text-sm leading-6 text-rose-900">The link may be incorrect, expired, or no longer available.</p>
-              </div>
-            )}
-          </div>
-        </div>
+        )}
       </div>
     </main>
   );

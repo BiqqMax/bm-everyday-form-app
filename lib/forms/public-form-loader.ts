@@ -27,22 +27,22 @@ export type PublicFormViewData = {
   responseCount: number | null;
 };
 
-type ProfileRow = {
+type UserRow = {
   display_name: string | null;
-  avatar_url: string | null;
+  avatar_url?: string | null;
 };
 
 function toPublicFormView(
   form: PublicFormRow,
-  profile: ProfileRow | null,
+  owner: UserRow | null,
   fields: PublicFormFieldData[],
 ): PublicFormViewData {
   return {
     id: form.id,
     title: form.title,
     description: form.description,
-    displayName: profile?.display_name ?? "",
-    avatarUrl: profile?.avatar_url ?? null,
+    displayName: owner?.display_name ?? "",
+    avatarUrl: owner?.avatar_url ?? null,
     qrShareToken: form.qr_share_token,
     fields,
     isPublished: form.is_public,
@@ -102,7 +102,7 @@ export async function loadPublicForm(
       return null;
     }
 
-    const [profileResult, fieldsResult] = await Promise.all([
+    const [ownerResult, fieldsResult] = await Promise.all([
       supabase
         .from("profiles")
         .select("display_name,avatar_url")
@@ -115,15 +115,15 @@ export async function loadPublicForm(
         .order("position", { ascending: true }),
     ]);
 
-    if (profileResult.error) {
-      throw profileResult.error;
+    if (ownerResult.error) {
+      throw ownerResult.error;
     }
 
     if (fieldsResult.error) {
       throw fieldsResult.error;
     }
 
-    const profile = profileResult.data as ProfileRow | null;
+    const owner = ownerResult.data as UserRow | null;
     const fields: PublicFormFieldData[] = (fieldsResult.data ?? []).map((field) => ({
       id: field.id,
       label: field.label,
@@ -135,7 +135,7 @@ export async function loadPublicForm(
       position: field.position,
     }));
 
-    return toPublicFormView(form, profile, fields);
+    return toPublicFormView(form, owner, fields);
   } catch {
     return null;
   }

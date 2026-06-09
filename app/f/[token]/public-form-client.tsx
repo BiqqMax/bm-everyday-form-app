@@ -1,12 +1,16 @@
 "use client";
 
-import type { FormEvent, ReactNode } from "react";
-import { useMemo, useState } from "react";
+import type { FormEvent } from "react";
+import { useCallback, useMemo, useState } from "react";
 
-type PublicFormField = {
+import OwnerHeader from "../../../components/form-public/OwnerHeader";
+import FormFields, { type FormFieldDef } from "../../../components/form-public/FormFields";
+import SubmitButton from "../../../components/form-public/SubmitButton";
+
+type PublicFormField = FormFieldDef & {
   id: string;
   label: string;
-  type: "text" | "textarea" | "email" | "select" | "checkbox" | "radio" | "date";
+  type: "text" | "email" | "textarea" | "number";
   required: boolean;
   options: string[];
   position: number;
@@ -17,6 +21,7 @@ export type PublicFormView = {
   title: string;
   description: string | null;
   displayName: string;
+  avatarUrl: string | null;
   qrShareToken: string;
   fields: PublicFormField[];
   isPublished: boolean;
@@ -27,53 +32,8 @@ export type PublicFormView = {
 
 type SubmissionState =
   | { status: "idle"; message: string }
-  | { status: "submitting"; message: string }
   | { status: "success"; message: string }
   | { status: "error"; message: string };
-
-function joinClasses(...classes: Array<string | false | null | undefined>) {
-  return classes.filter(Boolean).join(" ");
-}
-
-function formatOptionalCount(value: number | null) {
-  if (typeof value !== "number") {
-    return "Unlimited";
-  }
-
-  return String(value);
-}
-
-function formatOptionalDate(value: string | null) {
-  if (!value) {
-    return "Never";
-  }
-
-  return new Intl.DateTimeFormat("en-CA", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(value));
-}
-
-function fieldName(fieldId: string) {
-  return `field_${fieldId}`;
-}
-
-function checkboxGroupName(fieldId: string) {
-  return `field_${fieldId}[]`;
-}
-
-type SubmissionAnswerPayload =
-  | {
-      fieldId: string;
-      value: string;
-    }
-  | {
-      fieldId: string;
-      value: string[];
-    };
 
 function getDeviceId() {
   let id = localStorage.getItem("device_id");
@@ -86,28 +46,6 @@ function getDeviceId() {
   return id;
 }
 
-function collectSubmissionAnswers(formElement: HTMLFormElement, fields: PublicFormField[]) {
-  const formData = new FormData(formElement);
-
-  return fields
-    .map((field) => {
-      if (field.type === "checkbox") {
-        const values = formData
-          .getAll(checkboxGroupName(field.id))
-          .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
-          .filter(Boolean);
-
-        return values.length > 0 ? { fieldId: field.id, value: values } : null;
-      }
-
-      const value = formData.get(fieldName(field.id));
-      const normalizedValue = typeof value === "string" ? value.trim() : "";
-
-      return normalizedValue ? { fieldId: field.id, value: normalizedValue } : null;
-    })
-    .filter((answer) => answer !== null);
-}
-
 function SubmissionStatus({ state }: { state: SubmissionState }) {
   if (state.status === "idle") {
     return null;
@@ -115,106 +53,74 @@ function SubmissionStatus({ state }: { state: SubmissionState }) {
 
   const tone =
     state.status === "error"
-      ? "border-[rgba(180,35,24,0.2)] bg-[rgba(180,35,24,0.06)] text-[#7f1d1d]"
+      ? "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-800 dark:bg-rose-950 dark:text-rose-200"
       : state.status === "success"
-        ? "border-[rgba(15,93,70,0.18)] bg-[rgba(15,93,70,0.08)] text-[var(--accent)]"
-        : "border-[var(--border)] bg-[var(--surface-subtle)] text-[var(--muted-foreground)]";
+        ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
+        : "border-neutral-200 bg-neutral-50 text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-400";
 
-  return <div className={joinClasses("rounded-2xl border px-4 py-3 text-sm font-medium", tone)}>{state.message}</div>;
-}
-
-function FieldShell({
-  field,
-  children,
-}: {
-  field: PublicFormField;
-  children: ReactNode;
-}) {
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] p-4">
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <label htmlFor={fieldName(field.id)} className="block text-sm font-semibold text-[var(--foreground)]">
-          {field.label}
-          {field.required ? <span className="ml-1 text-[#b42318]">*</span> : null}
-        </label>
-        <span className="inline-flex rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
-          {field.type}
-        </span>
-      </div>
-      {children}
+    <div className={`rounded-md border px-4 py-3 text-sm font-medium mt-4 ${tone}`}>
+      {state.message}
     </div>
   );
 }
 
-function renderField(field: PublicFormField) {
-  const baseClass =
-    "w-full rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-[var(--foreground)] outline-none transition-colors placeholder:text-[var(--muted-foreground)] focus-visible:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-0";
+function validateRequiredFields(
+  fields: PublicFormField[],
+  values: Record<string, string>,
+): Record<string, string> {
+  const errors: Record<string, string> = {};
 
-  switch (field.type) {
-    case "textarea":
-      return <textarea id={fieldName(field.id)} name={fieldName(field.id)} rows={4} className={baseClass} required={field.required} />;
-    case "email":
-      return <input id={fieldName(field.id)} name={fieldName(field.id)} type="email" className={baseClass} required={field.required} />;
-    case "date":
-      return <input id={fieldName(field.id)} name={fieldName(field.id)} type="date" className={baseClass} required={field.required} />;
-    case "select":
-      return (
-        <select id={fieldName(field.id)} name={fieldName(field.id)} className={baseClass} required={field.required} defaultValue="">
-          <option value="" disabled>
-            Select an option
-          </option>
-          {field.options.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-      );
-    case "radio":
-      return (
-        <div className="grid gap-2">
-          {field.options.map((option) => (
-            <label key={option} className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--foreground)]">
-              <input
-                type="radio"
-                name={fieldName(field.id)}
-                value={option}
-                required={field.required}
-                className="h-4 w-4 text-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
-              />
-              <span>{option}</span>
-            </label>
-          ))}
-        </div>
-      );
-    case "checkbox":
-      return (
-        <div className="grid gap-2">
-          {field.options.map((option) => (
-            <label key={option} className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--foreground)]">
-              <input
-                type="checkbox"
-                name={checkboxGroupName(field.id)}
-                value={option}
-                className="h-4 w-4 rounded border-[var(--border)] text-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
-              />
-              <span>{option}</span>
-            </label>
-          ))}
-          {field.required ? <p className="text-xs text-[var(--muted-foreground)]">Select at least one option.</p> : null}
-        </div>
-      );
-    case "text":
-    default:
-      return <input id={fieldName(field.id)} name={fieldName(field.id)} type="text" className={baseClass} required={field.required} />;
+  for (const field of fields) {
+    if (field.required && !(values[field.id] ?? "").trim()) {
+      errors[field.id] = "This field is required";
+    }
   }
+
+  return errors;
 }
 
 export function PublicFormClient({ form }: { form: PublicFormView }) {
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [state, setState] = useState<SubmissionState>({ status: "idle", message: "" });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const submitDisabled = useMemo(() => isSubmitting || state.status === "success", [isSubmitting, state.status]);
+  const submitDisabled = useMemo(
+    () => isSubmitting || state.status === "success",
+    [isSubmitting, state.status],
+  );
+
+  const sortedFields = useMemo(
+    () =>
+      form.fields
+        .slice()
+        .sort((left, right) => left.position - right.position),
+    [form.fields],
+  );
+
+  const simpleFields: FormFieldDef[] = useMemo(
+    () =>
+      sortedFields.map((field) => ({
+        id: field.id,
+        label: field.label,
+        type: field.type as FormFieldDef["type"],
+        required: field.required,
+      })),
+    [sortedFields],
+  );
+
+  const handleFieldChange = useCallback((fieldId: string, value: string) => {
+    setValues((prev) => ({ ...prev, [fieldId]: value }));
+    setErrors((prev) => {
+      if (prev[fieldId]) {
+        const next = { ...prev };
+        delete next[fieldId];
+        return next;
+      }
+      return prev;
+    });
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -223,11 +129,21 @@ export function PublicFormClient({ form }: { form: PublicFormView }) {
       return;
     }
 
-    const formElement = event.currentTarget;
-    const answers = collectSubmissionAnswers(formElement, form.fields);
+    const fieldErrors = validateRequiredFields(sortedFields, values);
+
+    if (Object.keys(fieldErrors).length > 0) {
+      setErrors(fieldErrors);
+      return;
+    }
+
+    const responses = Object.entries(values)
+      .filter(([, value]) => value.trim().length > 0)
+      .map(([fieldId, value]) => ({
+        fieldId,
+        value: value.trim(),
+      }));
 
     setIsSubmitting(true);
-    setState({ status: "submitting", message: "Submitting your response…" });
 
     try {
       const response = await fetch("/api/forms/submit", {
@@ -239,7 +155,7 @@ export function PublicFormClient({ form }: { form: PublicFormView }) {
         body: JSON.stringify({
           publicToken: form.qrShareToken,
           deviceId: getDeviceId(),
-          answers,
+          answers: responses,
         }),
       });
 
@@ -256,18 +172,20 @@ export function PublicFormClient({ form }: { form: PublicFormView }) {
         return;
       }
 
-      formElement.reset();
+      setValues({});
+      setErrors({});
       setState({
         status: "success",
         message:
           typeof payload.message === "string" && payload.message.trim()
             ? payload.message
-            : "Response submitted successfully.",
+            : "Thank you! Your response has been submitted.",
       });
     } catch {
       setState({
         status: "error",
-        message: "We couldn't reach the server. Please check your connection and try again.",
+        message:
+          "We couldn't reach the server. Please check your connection and try again.",
       });
     } finally {
       setIsSubmitting(false);
@@ -275,49 +193,29 @@ export function PublicFormClient({ form }: { form: PublicFormView }) {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-3 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:grid-cols-3">
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] p-4">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">Public path</p>
-          <p className="mt-2 break-words text-sm font-medium text-[var(--foreground)]">/f/{form.qrShareToken}</p>
-          {form.displayName ? <p className="mt-2 break-words text-xs text-[var(--muted-foreground)]">Shared by {form.displayName}</p> : null}
-        </div>
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] p-4">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">Expiry</p>
-          <p className="mt-2 text-sm font-medium text-[var(--foreground)]">{formatOptionalDate(form.expiresAt)}</p>
-        </div>
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] p-4">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">Responses</p>
-          <p className="mt-2 text-sm font-medium text-[var(--foreground)]">
-            {typeof form.responseCount === "number" ? String(form.responseCount) : "0"} / {formatOptionalCount(form.responseLimit)}
-          </p>
-        </div>
-      </div>
+    <div>
+      <OwnerHeader
+        ownerName={form.displayName || "Anonymous"}
+        ownerAvatarUrl={form.avatarUrl ?? null}
+        formTitle={form.title}
+        formDescription={form.description}
+        expiresAt={form.expiresAt}
+        responseLimit={form.responseLimit}
+      />
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <input type="hidden" name="publicToken" value={form.qrShareToken} />
+      <form onSubmit={handleSubmit}>
+        <div className="rounded-xl border border-neutral-200 dark:border-[#123B2B] bg-white dark:bg-[#0A1F16] p-5 space-y-4">
+          <FormFields
+            fields={simpleFields}
+            values={values}
+            errors={errors}
+            onChange={handleFieldChange}
+          />
 
-        <div className="grid gap-4">
-          {form.fields
-            .slice()
-            .sort((left, right) => left.position - right.position)
-            .map((field) => (
-              <FieldShell key={field.id} field={field}>
-                {renderField(field)}
-              </FieldShell>
-            ))}
+          <SubmitButton isSubmitting={isSubmitting} isDisabled={state.status === "success"} />
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <button
-            type="submit"
-            disabled={submitDisabled}
-            className="inline-flex min-h-11 items-center justify-center rounded-[10px] bg-[var(--accent)] px-5 py-3 text-sm font-medium text-[var(--accent-foreground)] transition-colors hover:bg-[var(--accent-hover)] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isSubmitting ? "Submitting…" : "Submit response"}
-          </button>
-          <SubmissionStatus state={state} />
-        </div>
+        <SubmissionStatus state={state} />
       </form>
     </div>
   );
