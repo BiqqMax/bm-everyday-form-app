@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { getAuthCallbackUrl, getAuthNextRoute, type AuthFlow } from "../../lib/auth/flow";
-import { createClient } from "../../lib/supabase/client";
+import { createClient } from "../../lib/supabase/browser";
 import Button from "../ui/Button";
 
 type GoogleOAuthButtonProps = {

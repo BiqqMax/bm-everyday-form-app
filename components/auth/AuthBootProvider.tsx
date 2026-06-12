@@ -4,7 +4,7 @@ import { createContext, ReactNode, useContext, useEffect, useMemo, useState } fr
 import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 
-import { createClient } from "../../lib/supabase/client";
+import { createClient } from "../../lib/supabase/browser";
 
 function logQueryFailure(queryName: string, error: unknown) {
   const supabaseError = error as {

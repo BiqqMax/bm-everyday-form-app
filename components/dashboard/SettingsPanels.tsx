@@ -5,6 +5,7 @@ import { useActionState, useCallback, useRef, useState, type ReactNode } from "r
 import { updateAvatarAction, updateSettingsAction, type AvatarActionState, type SettingsActionState } from "../../lib/settings/actions";
 import type { SettingsData } from "../../lib/settings/data";
 import { createClient } from "../../lib/supabase/browser";
+import { getInitials } from "../../lib/utils/avatar";
 import Button from "../ui/Button";
 import Card from "../ui/Card";
 
@@ -58,11 +59,7 @@ function AvatarPreview({
     );
   }
 
-  const initials = (displayName || "U")
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase();
+  const initials = getInitials(displayName) || "U";
 
   return (
     <div className="w-20 h-20 rounded-full bg-[var(--accent)] text-white flex items-center justify-center text-lg font-semibold border-2 border-[var(--border)]">

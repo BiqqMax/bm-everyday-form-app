@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "../supabase/browser";
+import { formatAnswerValue } from "../utils/format-answer";
 import type { DashboardSubmission } from "../dashboard/dashboard";
 type RealtimePayload = {
   eventType: "INSERT" | "UPDATE" | "DELETE";
@@ -12,27 +13,6 @@ type RealtimePayload = {
 
 // Use the browser supabase client for the realtime channel
 const supabaseBrowser = createClient();
-
-/**
- * Formats an answer value from the database into a displayable string.
- * Mirrors the server-side formatAnswerValue in lib/dashboard/dashboard.ts.
- */
-function formatAnswerValue(value: unknown): string {
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => (typeof item === "string" ? item : String(item)))
-      .filter(Boolean)
-      .join(", ");
-  }
-
-  if (value && typeof value === "object") {
-    return JSON.stringify(value);
-  }
-
-  if (typeof value === "string") return value;
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
-  return "";
-}
 
 /**
  * Fetches the full submission details (including answers) for a single submission ID.

@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { AuthShell } from "./AuthShell";
 import { OtpCodeInput } from "./OtpCodeInput";
 import Button from "../ui/Button";
-import { createClient } from "../../lib/supabase/client";
+import { createClient } from "../../lib/supabase/browser";
 import {
   OTP_LENGTH,
   OTP_RESEND_COOLDOWN_SECONDS,

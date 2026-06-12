@@ -21,7 +21,5 @@ export async function createClient() {
 }
 
 export const getServerSupabaseClient = createClient;
-export const createServerSupabaseClient = createClient;
-export const createServerClientInstance = createClient;
 
 export default createClient;

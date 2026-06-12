@@ -1,3 +1,5 @@
+import { getInitials } from "../../lib/utils/avatar";
+
 type OwnerHeaderProps = {
   ownerName: string;
   ownerAvatarUrl?: string | null;
@@ -6,22 +8,6 @@ type OwnerHeaderProps = {
   expiresAt?: string | null;
   responseLimit?: number | null;
 };
-
-function getInitials(name: string): string {
-  const trimmed = name.trim();
-
-  if (!trimmed) {
-    return "?";
-  }
-
-  const parts = trimmed.split(/\s+/).filter(Boolean);
-
-  if (parts.length === 1) {
-    return parts[0][0].toUpperCase();
-  }
-
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
 
 function formatDate(dateString: string): string {
   try {
@@ -57,12 +43,7 @@ export default function OwnerHeader({
           />
         ) : (
           <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[#123B2B] text-white flex items-center justify-center shrink-0 text-lg sm:text-xl font-semibold">
-            {ownerName
-              .split(" ")
-              .map((n) => n[0])
-              .slice(0, 2)
-              .join("")
-              .toUpperCase()}
+            {getInitials(ownerName)}
           </div>
         )}
 

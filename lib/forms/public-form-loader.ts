@@ -1,42 +1,21 @@
-import "server-only";
+import { createClient } from "../supabase/server";
+import { getFormByPublicToken } from "../forms/public-resolver";
+import type { PublicFormView } from "../../app/f/[token]/public-form-client";
 
-import type { SupabaseClient } from "@supabase/supabase-js";
+export type { PublicFormView } from "../../app/f/[token]/public-form-client";
 
-import { getFormByPublicToken, type PublicFormRow } from "./public-resolver";
-
-export type PublicFormFieldData = {
-  id: string;
-  label: string;
-  type: "text" | "textarea" | "email" | "select" | "checkbox" | "radio" | "date";
-  required: boolean;
-  options: string[];
-  position: number;
-};
-
-export type PublicFormViewData = {
-  id: string;
-  title: string;
-  description: string | null;
-  displayName: string;
-  avatarUrl: string | null;
-  qrShareToken: string;
-  fields: PublicFormFieldData[];
-  isPublished: boolean;
-  expiresAt: string | null;
-  responseLimit: number | null;
-  responseCount: number | null;
-};
-
+type PublicFormRow = NonNullable<Awaited<ReturnType<typeof getFormByPublicToken>>>;
+type PublicFormField = PublicFormView["fields"][number];
 type UserRow = {
   display_name: string | null;
   avatar_url?: string | null;
 };
 
-function toPublicFormView(
+export function toPublicFormView(
   form: PublicFormRow,
   owner: UserRow | null,
-  fields: PublicFormFieldData[],
-): PublicFormViewData {
+  fields: PublicFormField[],
+): PublicFormView {
   return {
     id: form.id,
     title: form.title,
@@ -52,7 +31,7 @@ function toPublicFormView(
   };
 }
 
-export function statusMessage(form: PublicFormViewData | null): {
+export function statusMessage(form: PublicFormView | null): {
   title: string;
   description: string;
 } | null {
@@ -65,14 +44,14 @@ export function statusMessage(form: PublicFormViewData | null): {
 
   if (!form.isPublished) {
     return {
-      title: "Not published",
-      description: "The owner has not made this form public yet.",
+      title: "This form is not published yet",
+      description: "The owner has not made this form public.",
     };
   }
 
   if (form.expiresAt && new Date(form.expiresAt).getTime() < Date.now()) {
     return {
-      title: "Form closed",
+      title: "This form has closed",
       description: "The response window for this form has expired.",
     };
   }
@@ -83,18 +62,17 @@ export function statusMessage(form: PublicFormViewData | null): {
     form.responseCount >= form.responseLimit
   ) {
     return {
-      title: "Form full",
-      description: "The response limit for this form has been reached.",
+      title: "This form is full",
+      description: "The response limit for this form has already been reached.",
     };
   }
 
   return null;
 }
 
-export async function loadPublicForm(
-  supabase: SupabaseClient,
-  token: string,
-): Promise<PublicFormViewData | null> {
+export async function loadPublicForm(token: string): Promise<PublicFormView | null> {
+  const supabase = await createClient();
+
   try {
     const form = await getFormByPublicToken(supabase, token);
 
@@ -103,11 +81,7 @@ export async function loadPublicForm(
     }
 
     const [ownerResult, fieldsResult] = await Promise.all([
-      supabase
-        .from("profiles")
-        .select("display_name,avatar_url")
-        .eq("id", form.owner_id)
-        .maybeSingle(),
+      supabase.from("profiles").select("display_name,avatar_url").eq("id", form.owner_id).maybeSingle(),
       supabase
         .from("form_fields")
         .select("id,label,field_type,is_required,options,position")
@@ -124,14 +98,12 @@ export async function loadPublicForm(
     }
 
     const owner = ownerResult.data as UserRow | null;
-    const fields: PublicFormFieldData[] = (fieldsResult.data ?? []).map((field) => ({
+    const fields = (fieldsResult.data ?? []).map((field) => ({
       id: field.id,
       label: field.label,
       type: field.field_type,
       required: field.is_required,
-      options: Array.isArray(field.options)
-        ? field.options.filter((option): option is string => typeof option === "string")
-        : [],
+      options: Array.isArray(field.options) ? field.options.filter((option): option is string => typeof option === "string") : [],
       position: field.position,
     }));
 

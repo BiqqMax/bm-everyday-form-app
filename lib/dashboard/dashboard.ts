@@ -1,8 +1,6 @@
-
-
 import "server-only";
 
-
+import { formatAnswerValue } from "../utils/format-answer";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 type DashboardFormRow = {
@@ -86,41 +84,6 @@ export type DashboardData = {
   recentSubmissions: DashboardSubmission[];
   summary: DashboardSummary;
 };
-
-function safeString(value: unknown): string {
-  if (typeof value === "string") return value;
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
-  if (Array.isArray(value)) return value.map((item) => safeString(item)).join(", ");
-  if (value && typeof value === "object") return JSON.stringify(value);
-  return "";
-}
-
-function formatAnswerValue(value: unknown): string {
-  if (Array.isArray(value)) {
-    return value.map((item) => safeString(item)).filter(Boolean).join(", ");
-  }
-
-  if (value && typeof value === "object") {
-    return JSON.stringify(value);
-  }
-
-  return safeString(value);
-}
-
-function formatDateLong(value: string | null) {
-  if (!value) {
-    return "No submissions yet";
-  }
-
-  return new Intl.DateTimeFormat("en-CA", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone: "UTC",
-  }).format(new Date(value));
-}
 
 function groupBy<T>(rows: T[], keyGetter: (row: T) => string) {
   return rows.reduce<Record<string, T[]>>((acc, row) => {

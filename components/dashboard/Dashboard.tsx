@@ -11,6 +11,7 @@ import type { CreateFormActionState, DashboardActionState } from "../../lib/dash
 import { createFormAction, deleteFormAction, updateFormAction, updateFormLifecycleAction } from "../../lib/dashboard/actions";
 import { CreateFormSuccessScreen, StepBasicInfo, StepFieldBuilder, StepReview, type CreateFormWizardField } from "./CreateFormModalSteps";
 import { getShareStatus, getShareStatusLabel } from "../../lib/forms/public";
+import { formatDateLong } from "../../lib/utils/format-date";
 import type { DashboardData, DashboardForm, DashboardSubmission } from "../../lib/dashboard/dashboard";
 import type { SettingsData } from "../../lib/settings/data";
 import ShareModal from "./ShareModal";
@@ -163,18 +164,6 @@ function firstText(...values: unknown[]) {
     if (typeof value === "number" && Number.isFinite(value)) return String(value);
   }
   return "";
-}
-
-function formatDateLong(value: string | null) {
-  if (!value) return "No submissions yet";
-
-  return new Intl.DateTimeFormat("en-CA", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(value));
 }
 
 function averagePerForm(totalSubmissions: number, totalForms: number) {
