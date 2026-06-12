@@ -43,6 +43,15 @@ type StepFieldBuilderProps = {
   listRegionRef: (node: HTMLDivElement | null) => void;
 };
 
+type StepFormRulesProps = {
+  responseLimit: string;
+  oneSubmissionPerPerson: boolean;
+  expiresAt: string;
+  onResponseLimitChange: (value: string) => void;
+  onOneSubmissionPerPersonChange: (value: boolean) => void;
+  onExpiresAtChange: (value: string) => void;
+};
+
 type StepReviewProps = {
   title: string;
   description: string;
@@ -824,6 +833,66 @@ export function StepReview({ title, description, isPublic, fields, validationErr
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+export function StepFormRules({
+  responseLimit,
+  oneSubmissionPerPerson,
+  expiresAt,
+  onResponseLimitChange,
+  onOneSubmissionPerPersonChange,
+  onExpiresAtChange,
+}: StepFormRulesProps) {
+  return (
+    <div className="space-y-3">
+      <label className="block text-sm">
+        <span className="mb-2 block text-sm font-medium text-[var(--foreground)]">
+          Response limit
+          <span className="ml-1.5 text-xs font-normal text-[var(--muted-foreground)]">(optional)</span>
+        </span>
+        <input
+          type="number"
+          min={1}
+          value={responseLimit}
+          onChange={(event) => onResponseLimitChange(event.target.value)}
+          placeholder="No limit"
+          className="w-full rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-[var(--foreground)] outline-none transition-colors placeholder:text-[var(--muted)] focus-visible:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-0"
+        />
+        <p className="mt-1.5 text-xs leading-5 text-[var(--muted-foreground)]">
+          Maximum number of responses this form will accept. Leave empty for unlimited.
+        </p>
+      </label>
+
+      <label className="flex items-center gap-3 rounded-[16px] border border-[var(--border)] bg-[var(--surface-subtle)] px-4 py-3 text-sm text-[var(--foreground)]">
+        <input
+          type="checkbox"
+          checked={oneSubmissionPerPerson}
+          onChange={(event) => onOneSubmissionPerPersonChange(event.target.checked)}
+          className="h-4 w-4 rounded border-[var(--border)] bg-transparent text-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-0"
+        />
+        <div className="min-w-0">
+          <span className="font-medium">One submission per person</span>
+          <p className="text-xs leading-5 text-[var(--muted-foreground)]">Limit to one response per person (UI only — backend not yet enforced)</p>
+        </div>
+      </label>
+
+      <label className="block text-sm">
+        <span className="mb-2 block text-sm font-medium text-[var(--foreground)]">
+          Expiry
+          <span className="ml-1.5 text-xs font-normal text-[var(--muted-foreground)]">(optional)</span>
+        </span>
+        <input
+          type="datetime-local"
+          value={expiresAt}
+          onChange={(event) => onExpiresAtChange(event.target.value)}
+          className="w-full rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-[var(--foreground)] outline-none transition-colors focus-visible:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-0"
+        />
+        <p className="mt-1.5 text-xs leading-5 text-[var(--muted-foreground)]">
+          The form will stop accepting responses after this date and time. Leave empty for no expiry.
+        </p>
+      </label>
     </div>
   );
 }

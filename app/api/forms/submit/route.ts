@@ -245,6 +245,38 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // --- Conditional duplicate-submission check (per device) ---
+    // Only enforced when the form owner's profile setting enables it.
+    if (deviceId) {
+      console.log("[SUBMIT][RESTRICT_CHECK] owner_id", form.owner_id);
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("restrict_multiple_submissions")
+        .eq("id", form.owner_id)
+        .maybeSingle();
+
+      const restrictMultiple = profile?.restrict_multiple_submissions ?? false;
+      console.log("[SUBMIT][RESTRICT_CHECK] restrict_multiple_submissions", restrictMultiple);
+
+      if (restrictMultiple) {
+        const { data: existing } = await supabase
+          .from("submissions")
+          .select("id")
+          .eq("form_id", form.id)
+          .eq("device_id", deviceId)
+          .maybeSingle();
+
+        if (existing) {
+          console.error("[SUBMIT_014] duplicate device submission blocked", { formId: form.id, deviceId });
+          console.error("[SUBMIT_EXIT]", "SUBMIT_014");
+          return NextResponse.json(
+            { code: "SUBMIT_014", message: "You have already submitted this form" },
+            { status: 403 }
+          );
+        }
+      }
+    }
+
     const fields = await loadFormFields(supabase, form.id);
     console.log("[SUBMIT][FIELDS_LOADED]");
     console.log(

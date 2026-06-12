@@ -9,7 +9,7 @@ import Input from "../ui/Input";
 import Modal from "../ui/Modal";
 import type { CreateFormActionState, DashboardActionState } from "../../lib/dashboard/actions";
 import { createFormAction, deleteFormAction, updateFormAction, updateFormLifecycleAction } from "../../lib/dashboard/actions";
-import { CreateFormSuccessScreen, StepBasicInfo, StepFieldBuilder, StepReview, type CreateFormWizardField } from "./CreateFormModalSteps";
+import { CreateFormSuccessScreen, StepBasicInfo, StepFormRules, StepFieldBuilder, StepReview, type CreateFormWizardField } from "./CreateFormModalSteps";
 import { getShareStatus, getShareStatusLabel } from "../../lib/forms/public";
 import { formatDateLong } from "../../lib/utils/format-date";
 import type { DashboardData, DashboardForm, DashboardSubmission } from "../../lib/dashboard/dashboard";
@@ -715,12 +715,15 @@ function CreateFormModalContent({
   onRestart: () => void;
   onManageCreatedForm: (identity: CreatedFormIdentity | null) => void;
   onShareCreatedForm: (identity: CreatedFormIdentity | null) => void;
-  step: 1 | 2 | 3;
-  setStep: (step: 1 | 2 | 3) => void;
+  step: 1 | 2 | 3 | 4;
+  setStep: (step: 1 | 2 | 3 | 4) => void;
 }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [isPublic, setIsPublic] = useState(false);
+  const [responseLimit, setResponseLimit] = useState("");
+  const [oneSubmissionPerPerson, setOneSubmissionPerPerson] = useState(false);
+  const [expiresAt, setExpiresAt] = useState("");
   const [fields, setFields] = useState<CreateFormWizardField[]>([]);
   const [activeFieldId, setActiveFieldId] = useState<string | null>(null);
   const [fieldFocusPulseKey, setFieldFocusPulseKey] = useState(0);
@@ -734,13 +737,14 @@ function CreateFormModalContent({
   const isStep1 = step === 1;
   const isStep2 = step === 2;
   const isStep3 = step === 3;
+  const isStep4 = step === 4;
   const isSuccess = createSucceeded;
 
   const isTitleValid = title.trim().length > 0;
   const hasFields = fields.length > 0;
   const titleError = !isTitleValid && (titleTouched || step1Attempted) ? "A form title is required." : undefined;
   const fieldsError = !hasFields && step2Attempted ? "Add at least one field to continue." : undefined;
-  const canGoNext = isStep1 ? isTitleValid : isStep2 ? hasFields : true;
+  const canGoNext = isStep1 ? isTitleValid : isStep2 ? true : isStep3 ? hasFields : true;
   const canCreate = isTitleValid && hasFields;
 
   const focusField = (id: string) => {
@@ -795,7 +799,7 @@ function CreateFormModalContent({
 
   const goBack = () => {
     if (step > 1) {
-      setStep(((step - 1) as 1 | 2 | 3));
+      setStep(((step - 1) as 1 | 2 | 3 | 4));
     }
   };
 
@@ -810,6 +814,10 @@ function CreateFormModalContent({
     }
 
     if (isStep2) {
+      // Form Rules step — no required validation
+    }
+
+    if (isStep3) {
       setStep2Attempted(true);
 
       if (!hasFields) {
@@ -817,8 +825,8 @@ function CreateFormModalContent({
       }
     }
 
-    if (step < 3) {
-      setStep((step + 1) as 1 | 2 | 3);
+    if (step < 4) {
+      setStep((step + 1) as 1 | 2 | 3 | 4);
     }
   };
 
@@ -848,14 +856,16 @@ function CreateFormModalContent({
             <div className="min-w-0 space-y-1">
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">Step {step}</p>
               <h2 className="text-xl font-semibold tracking-tight text-[var(--foreground)]">
-                {isStep1 ? "Basic Info" : isStep2 ? "Build Form" : "Review Form"}
+                {isStep1 ? "Basic Info" : isStep2 ? "Form Rules" : isStep3 ? "Field Builder" : "Review Form"}
               </h2>
               <p className="text-sm leading-5 text-[var(--muted-foreground)]">
                 {isStep1
                   ? "Set the form title and description."
                   : isStep2
-                    ? "Add and configure fields."
-                    : "Review everything before publishing."}
+                    ? "Configure response limits, one-per-person, and expiry."
+                    : isStep3
+                      ? "Add and configure fields."
+                      : "Review everything before publishing."}
               </p>
             </div>
           ) : null}
@@ -884,79 +894,91 @@ function CreateFormModalContent({
             onCreateAnother={handleCreateAnother}
           />
         </div>
-      ) : isStep3 ? (
+      ) : isStep4 ? (
         <CreateFormSubmissionStep
           title={title}
           description={description}
           isPublic={isPublic}
+          responseLimit={responseLimit}
+          oneSubmissionPerPerson={oneSubmissionPerPerson}
+          expiresAt={expiresAt}
           fields={fields}
           canCreate={canCreate}
           onBack={goBack}
           onCreateSuccess={handleCreateSuccess}
         />
+      ) : isStep3 ? (
+        <div className="min-h-0 flex-1 overflow-hidden px-4 py-4 sm:px-5">
+          <StepFieldBuilder
+            fields={fields}
+            activeFieldId={activeFieldId}
+            focusPulseKey={fieldFocusPulseKey}
+            onActivateField={focusField}
+            addField={addField}
+            updateField={updateField}
+            removeField={removeField}
+            listRegionRef={(node) => {
+              fieldListRegionRef.current = node;
+            }}
+          />
+        </div>
+      ) : isStep2 ? (
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+          <StepFormRules
+            responseLimit={responseLimit}
+            oneSubmissionPerPerson={oneSubmissionPerPerson}
+            expiresAt={expiresAt}
+            onResponseLimitChange={setResponseLimit}
+            onOneSubmissionPerPersonChange={setOneSubmissionPerPerson}
+            onExpiresAtChange={setExpiresAt}
+          />
+        </div>
       ) : (
-        <>
-          {isStep2 ? (
-            <div className="min-h-0 flex-1 overflow-hidden px-4 py-4 sm:px-5">
-              <StepFieldBuilder
-                fields={fields}
-                activeFieldId={activeFieldId}
-                focusPulseKey={fieldFocusPulseKey}
-                onActivateField={focusField}
-                addField={addField}
-                updateField={updateField}
-                removeField={removeField}
-                listRegionRef={(node) => {
-                  fieldListRegionRef.current = node;
-                }}
-              />
-            </div>
-          ) : (
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
-              <StepBasicInfo
-                title={title}
-                description={description}
-                isPublic={isPublic}
-                titleError={titleError}
-                onTitleChange={(value) => {
-                  setTitle(value);
-                  if (!titleTouched) {
-                    setTitleTouched(true);
-                  }
-                }}
-                onDescriptionChange={setDescription}
-                onIsPublicChange={setIsPublic}
-              />
-            </div>
-          )}
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+          <StepBasicInfo
+            title={title}
+            description={description}
+            isPublic={isPublic}
+            titleError={titleError}
+            onTitleChange={(value) => {
+              setTitle(value);
+              if (!titleTouched) {
+                setTitleTouched(true);
+              }
+            }}
+            onDescriptionChange={setDescription}
+            onIsPublicChange={setIsPublic}
+          />
+        </div>
+      )}
 
-          <footer className="shrink-0 border-t border-[var(--border)] px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-sm leading-5 text-[#b42318]">
-                {isStep1 && titleError ? titleError : null}
-                {isStep2 && fieldsError ? fieldsError : null}
-              </div>
+      {!isSuccess && !isStep4 ? (
+        <footer className="shrink-0 border-t border-[var(--border)] px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-sm leading-5 text-[#b42318]">
+              {isStep1 && titleError ? titleError : null}
+              {isStep3 && fieldsError ? fieldsError : null}
+            </div>
 
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                {isStep1 ? (
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              {isStep1 ? (
+                <Button type="button" onClick={goNext} disabled={!canGoNext} className="sm:min-w-44">
+                  Next
+                </Button>
+              ) : (
+                <>
+                  <Button type="button" variant="secondary" onClick={goBack} className="sm:min-w-44">
+                    Back
+                  </Button>
                   <Button type="button" onClick={goNext} disabled={!canGoNext} className="sm:min-w-44">
                     Next
                   </Button>
-                ) : (
-                  <>
-                    <Button type="button" variant="secondary" onClick={goBack} className="sm:min-w-44">
-                      Back
-                    </Button>
-                    <Button type="button" onClick={goNext} disabled={!canGoNext} className="sm:min-w-44">
-                      Next
-                    </Button>
-                  </>
-                )}
-              </div>
+                </>
+              )}
             </div>
-          </footer>
-        </>
-      )}
+          </div>
+        </footer>
+      ) : null}
     </div>
   );
 }
@@ -965,6 +987,9 @@ function CreateFormSubmissionStep({
   title,
   description,
   isPublic,
+  responseLimit,
+  oneSubmissionPerPerson,
+  expiresAt,
   fields,
   canCreate,
   onBack,
@@ -973,6 +998,9 @@ function CreateFormSubmissionStep({
   title: string;
   description: string;
   isPublic: boolean;
+  responseLimit: string;
+  oneSubmissionPerPerson: boolean;
+  expiresAt: string;
   fields: CreateFormWizardField[];
   canCreate: boolean;
   onBack: () => void;
@@ -1003,6 +1031,8 @@ function CreateFormSubmissionStep({
       <input type="hidden" name="description" value={description} />
       <input type="hidden" name="isPublic" value={String(isPublic)} />
       <input type="hidden" name="fields" value={JSON.stringify(fields)} />
+      <input type="hidden" name="responseLimit" value={responseLimit} />
+      <input type="hidden" name="expiresAt" value={expiresAt} />
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
         <StepReview title={title} description={description} isPublic={isPublic} fields={fields} />
@@ -1042,7 +1072,7 @@ function CreateFormModal({
   onShareCreatedForm: (identity: CreatedFormIdentity | null) => void;
   formKey: number;
 }) {
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
 
   useEffect(() => {
     if (open) {

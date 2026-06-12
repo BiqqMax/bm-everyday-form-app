@@ -158,6 +158,19 @@ export async function createFormAction(_: CreateFormActionState, formData: FormD
     const description = getOptionalString(formData, "description");
     const isPublic = getBoolean(formData, "isPublic");
     const fields = parseFields(formData);
+
+    const responseLimitRaw = formData.get("responseLimit");
+    const responseLimit: number | null =
+      typeof responseLimitRaw === "string" && responseLimitRaw.trim() !== ""
+        ? Number(responseLimitRaw) || null
+        : null;
+
+    const expiresAtRaw = formData.get("expiresAt");
+    const expiresAt: string | null =
+      typeof expiresAtRaw === "string" && expiresAtRaw.trim() !== ""
+        ? expiresAtRaw.trim()
+        : null;
+
     const { supabase, user } = await getAuthenticatedUser();
 
     console.log("[CREATE_FORM][START]", {
@@ -204,6 +217,8 @@ export async function createFormAction(_: CreateFormActionState, formData: FormD
           description: description || null,
           is_public: isPublic,
           qr_share_token: qrShareToken,
+          response_limit: responseLimit,
+          expires_at: expiresAt,
         })
         .select("id")
         .single();
