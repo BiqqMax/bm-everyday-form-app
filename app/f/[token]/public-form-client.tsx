@@ -1,7 +1,7 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import OwnerHeader from "../../../components/form-public/OwnerHeader";
 import FormFields, { type FormFieldDef } from "../../../components/form-public/FormFields";
@@ -85,6 +85,16 @@ export function PublicFormClient({ form }: { form: PublicFormView }) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [state, setState] = useState<SubmissionState>({ status: "idle", message: "" });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submissionGate, setSubmissionGate] = useState<"loading" | "submitted" | "clean">("loading");
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(`submitted_form_${form.qrShareToken}`);
+      setSubmissionGate(stored !== null ? "submitted" : "clean");
+    } catch {
+      setSubmissionGate("clean");
+    }
+  }, [form.qrShareToken]);
 
   const submitDisabled = useMemo(
     () => isSubmitting || state.status === "success",
@@ -181,6 +191,12 @@ export function PublicFormClient({ form }: { form: PublicFormView }) {
             ? payload.message
             : "Thank you! Your response has been submitted.",
       });
+      try {
+        localStorage.setItem(`submitted_form_${form.qrShareToken}`, "true");
+      } catch {
+        // localStorage unavailable — non-critical, backend still enforces dedup
+      }
+      setSubmissionGate("submitted");
     } catch {
       setState({
         status: "error",
@@ -190,6 +206,58 @@ export function PublicFormClient({ form }: { form: PublicFormView }) {
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  if (submissionGate === "loading") {
+    return (
+      <div>
+        <OwnerHeader
+          ownerName={form.displayName || "Anonymous"}
+          ownerAvatarUrl={form.avatarUrl ?? null}
+          formTitle={form.title}
+          formDescription={form.description}
+          expiresAt={form.expiresAt}
+          responseLimit={form.responseLimit}
+        />
+        <div className="rounded-xl border border-neutral-200 dark:border-[#123B2B] bg-white dark:bg-[#0A1F16] p-5">
+          <div className="space-y-4 animate-pulse">
+            <div className="h-10 rounded bg-neutral-100 dark:bg-neutral-800" />
+            <div className="h-10 rounded bg-neutral-100 dark:bg-neutral-800" />
+            <div className="h-10 w-32 rounded bg-neutral-100 dark:bg-neutral-800" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (submissionGate === "submitted") {
+    return (
+      <div>
+        <OwnerHeader
+          ownerName={form.displayName || "Anonymous"}
+          ownerAvatarUrl={form.avatarUrl ?? null}
+          formTitle={form.title}
+          formDescription={form.description}
+          expiresAt={form.expiresAt}
+          responseLimit={form.responseLimit}
+        />
+
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950 p-6 text-center">
+          <svg
+            className="mx-auto h-10 w-10 text-emerald-500 mb-3"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p className="text-emerald-800 dark:text-emerald-200 font-medium text-lg">
+            Thank you! Your response has been submitted.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (

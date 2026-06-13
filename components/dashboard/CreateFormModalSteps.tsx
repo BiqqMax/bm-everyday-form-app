@@ -25,11 +25,9 @@ export type CreateFormWizardField = {
 type StepBasicInfoProps = {
   title: string;
   description: string;
-  isPublic: boolean;
   titleError?: string;
   onTitleChange: (value: string) => void;
   onDescriptionChange: (value: string) => void;
-  onIsPublicChange: (value: boolean) => void;
 };
 
 type StepFieldBuilderProps = {
@@ -44,9 +42,11 @@ type StepFieldBuilderProps = {
 };
 
 type StepFormRulesProps = {
+  isPublic: boolean;
   responseLimit: string;
   oneSubmissionPerPerson: boolean;
   expiresAt: string;
+  onIsPublicChange: (value: boolean) => void;
   onResponseLimitChange: (value: string) => void;
   onOneSubmissionPerPersonChange: (value: boolean) => void;
   onExpiresAtChange: (value: string) => void;
@@ -57,6 +57,9 @@ type StepReviewProps = {
   description: string;
   isPublic: boolean;
   fields: CreateFormWizardField[];
+  responseLimit: string;
+  oneSubmissionPerPerson: boolean;
+  expiresAt: string;
   validationErrors?: string[];
 };
 
@@ -542,11 +545,9 @@ function FieldTypeDropdown({
 export function StepBasicInfo({
   title,
   description,
-  isPublic,
   titleError,
   onTitleChange,
   onDescriptionChange,
-  onIsPublicChange,
 }: StepBasicInfoProps) {
   return (
     <div className="space-y-3">
@@ -570,16 +571,6 @@ export function StepBasicInfo({
           placeholder="Add a short description"
           className="w-full rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-[var(--foreground)] outline-none transition-colors placeholder:text-[var(--muted)] focus-visible:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-0"
         />
-      </label>
-
-      <label className="flex items-center gap-3 rounded-[16px] border border-[var(--border)] bg-[var(--surface-subtle)] px-4 py-3 text-sm text-[var(--foreground)]">
-        <input
-          type="checkbox"
-          checked={isPublic}
-          onChange={(event) => onIsPublicChange(event.target.checked)}
-          className="h-4 w-4 rounded border-[var(--border)] bg-transparent text-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-0"
-        />
-        Public form
       </label>
     </div>
   );
@@ -766,7 +757,17 @@ export function StepFieldBuilder({
   );
 }
 
-export function StepReview({ title, description, isPublic, fields, validationErrors }: StepReviewProps) {
+export function StepReview({ title, description, isPublic, fields, responseLimit, oneSubmissionPerPerson, expiresAt, validationErrors }: StepReviewProps) {
+  const formattedExpiresAt = expiresAt
+    ? new Date(expiresAt).toLocaleString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : null;
+
   return (
     <div className="space-y-3 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
       <div className="space-y-3">
@@ -794,6 +795,32 @@ export function StepReview({ title, description, isPublic, fields, validationErr
             <div className="space-y-1 sm:col-span-1">
               <p className="text-sm font-semibold text-[var(--foreground)]">Visibility</p>
               <p className="text-base font-normal leading-6 text-[var(--foreground)]">{isPublic ? "Public" : "Private"}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="border-t border-[var(--border)] pt-3">
+          <p className="mb-3 text-sm font-semibold tracking-tight text-[var(--foreground)]">Form Rules</p>
+          <div className="grid gap-2 sm:grid-cols-3">
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-[var(--foreground)]">Response limit</p>
+              <p className="text-base font-medium tracking-tight text-[var(--foreground)]">
+                {responseLimit && Number(responseLimit) > 0 ? responseLimit : "Unlimited"}
+              </p>
+            </div>
+
+            <div className="space-y-1 sm:col-span-1">
+              <p className="text-sm font-semibold text-[var(--foreground)]">Expiry</p>
+              <p className="text-base font-normal leading-6 text-[var(--foreground)]">
+                {formattedExpiresAt ? `Expires at: ${formattedExpiresAt}` : "No expiry"}
+              </p>
+            </div>
+
+            <div className="space-y-1 sm:col-span-1">
+              <p className="text-sm font-semibold text-[var(--foreground)]">One submission per person</p>
+              <p className="text-base font-normal leading-6 text-[var(--foreground)]">
+                {oneSubmissionPerPerson ? "Enabled" : "Disabled"}
+              </p>
             </div>
           </div>
         </div>
@@ -837,16 +864,59 @@ export function StepReview({ title, description, isPublic, fields, validationErr
   );
 }
 
+function Toggle({
+  checked,
+  onChange,
+  label,
+  description,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  label: string;
+  description?: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-[16px] border border-[var(--border)] bg-[var(--surface-subtle)] px-4 py-3">
+      <div className="min-w-0 space-y-0.5">
+        <span className="block text-sm font-medium text-[var(--foreground)]">{label}</span>
+        {description ? (
+          <span className="block text-xs leading-5 text-[var(--muted-foreground)]">{description}</span>
+        ) : null}
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        className={joinClasses(
+          "relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]",
+          checked ? "bg-[var(--accent)]" : "bg-[var(--border)]"
+        )}
+      >
+        <span
+          className={joinClasses(
+            "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition-transform",
+            checked ? "translate-x-5" : "translate-x-0"
+          )}
+        />
+      </button>
+    </div>
+  );
+}
+
 export function StepFormRules({
+  isPublic,
   responseLimit,
   oneSubmissionPerPerson,
   expiresAt,
+  onIsPublicChange,
   onResponseLimitChange,
   onOneSubmissionPerPersonChange,
   onExpiresAtChange,
 }: StepFormRulesProps) {
   return (
     <div className="space-y-3">
+      {/* Response limit */}
       <label className="block text-sm">
         <span className="mb-2 block text-sm font-medium text-[var(--foreground)]">
           Response limit
@@ -861,23 +931,11 @@ export function StepFormRules({
           className="w-full rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-[var(--foreground)] outline-none transition-colors placeholder:text-[var(--muted)] focus-visible:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-0"
         />
         <p className="mt-1.5 text-xs leading-5 text-[var(--muted-foreground)]">
-          Maximum number of responses this form will accept. Leave empty for unlimited.
+          Leave empty for unlimited.
         </p>
       </label>
 
-      <label className="flex items-center gap-3 rounded-[16px] border border-[var(--border)] bg-[var(--surface-subtle)] px-4 py-3 text-sm text-[var(--foreground)]">
-        <input
-          type="checkbox"
-          checked={oneSubmissionPerPerson}
-          onChange={(event) => onOneSubmissionPerPersonChange(event.target.checked)}
-          className="h-4 w-4 rounded border-[var(--border)] bg-transparent text-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-0"
-        />
-        <div className="min-w-0">
-          <span className="font-medium">One submission per person</span>
-          <p className="text-xs leading-5 text-[var(--muted-foreground)]">Limit to one response per person (UI only — backend not yet enforced)</p>
-        </div>
-      </label>
-
+      {/* Expiry */}
       <label className="block text-sm">
         <span className="mb-2 block text-sm font-medium text-[var(--foreground)]">
           Expiry
@@ -890,9 +948,25 @@ export function StepFormRules({
           className="w-full rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-[var(--foreground)] outline-none transition-colors focus-visible:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-0"
         />
         <p className="mt-1.5 text-xs leading-5 text-[var(--muted-foreground)]">
-          The form will stop accepting responses after this date and time. Leave empty for no expiry.
+          Leave empty for no expiry.
         </p>
       </label>
+
+      {/* Visibility toggle */}
+      <Toggle
+        checked={isPublic}
+        onChange={onIsPublicChange}
+        label="Public form"
+        description={isPublic ? "Anyone with the link can respond" : "Only you can view responses"}
+      />
+
+      {/* One submission per person toggle */}
+      <Toggle
+        checked={oneSubmissionPerPerson}
+        onChange={onOneSubmissionPerPersonChange}
+        label="One submission per person"
+        description={oneSubmissionPerPerson ? "Each person can submit only once" : "Unlimited submissions per person"}
+      />
     </div>
   );
 }

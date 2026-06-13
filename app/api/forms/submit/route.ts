@@ -31,6 +31,10 @@ type SubmissionRequestBody = {
   }>;
 };
 
+type ShareValidationResult =
+  | { ok: true }
+  | { ok: false; code: string; message: string; status: number };
+
 function getFormString(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value.trim() : "";
@@ -152,6 +156,65 @@ async function rollbackSubmissionWrites(supabase: Awaited<ReturnType<typeof crea
   console.log("[SUBMIT][ROLLBACK_COMPLETE]", { submissionId });
 }
 
+async function validateShareStatus(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  form: {
+    id: string;
+    owner_id: string;
+    is_public: boolean;
+    expires_at: string | null;
+    response_limit: number | null;
+    response_count: number;
+  },
+  deviceId: string,
+): Promise<ShareValidationResult> {
+  // --- STEP 3a: Basic share status (draft / expired / limit_reached) ---
+  const baseStatus = getShareStatus({
+    isPublic: form.is_public,
+    expiresAt: form.expires_at,
+    responseLimit: form.response_limit,
+    responseCount: form.response_count,
+  });
+
+  if (baseStatus === "draft") {
+    return { ok: false, code: "SUBMIT_003", message: "This form is still in draft.", status: 403 };
+  }
+
+  if (baseStatus === "expired") {
+    return { ok: false, code: "SUBMIT_004", message: "This form has expired.", status: 403 };
+  }
+
+  if (baseStatus === "limit_reached") {
+    return { ok: false, code: "SUBMIT_005", message: "This form has reached its response limit.", status: 403 };
+  }
+
+  // --- STEP 3b: Device restriction check (only if profile setting enables it) ---
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("restrict_multiple_submissions")
+    .eq("id", form.owner_id)
+    .maybeSingle();
+
+  const restrictMultiple = profile?.restrict_multiple_submissions ?? false;
+  console.log("[SUBMIT][VALIDATE] restrict_multiple_submissions", restrictMultiple);
+
+  if (restrictMultiple) {
+    const { data: existing } = await supabase
+      .from("submissions")
+      .select("id")
+      .eq("form_id", form.id)
+      .eq("device_id", deviceId)
+      .maybeSingle();
+
+    if (existing) {
+      console.error("[SUBMIT_014] duplicate device submission blocked", { formId: form.id, deviceId });
+      return { ok: false, code: "SUBMIT_014", message: "You have already submitted this form", status: 403 };
+    }
+  }
+
+  return { ok: true };
+}
+
 export async function POST(request: NextRequest) {
   try {
     console.log("[SUBMIT_ROUTE_START]");
@@ -199,6 +262,10 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = await createClient();
+
+    // ═══════════════════════════════════════════════════════════════
+    // STEP 1 — Load form
+    // ═══════════════════════════════════════════════════════════════
     const form = await loadPublicFormByToken(supabase, publicToken);
     console.log("[SUBMIT][FORM_RESOLVED]", form);
 
@@ -211,72 +278,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const status = getShareStatus({
-      isPublic: form.is_public,
-      expiresAt: form.expires_at,
-      responseLimit: form.response_limit,
-      responseCount: form.response_count,
-    });
+    // ═══════════════════════════════════════════════════════════════
+    // STEP 2 — Load profile settings (for restrict_multiple_submissions)
+    // ═══════════════════════════════════════════════════════════════
+    // Done inside validateShareStatus — one fetch, one gate.
 
-    if (status === "draft") {
-      console.error("[SUBMIT_003] form draft");
-      console.error("[SUBMIT_EXIT]", "SUBMIT_003");
+    // ═══════════════════════════════════════════════════════════════
+    // STEP 3+4 — Compute unified status + BLOCK EARLY if invalid
+    // ═══════════════════════════════════════════════════════════════
+    const validation = await validateShareStatus(supabase, form, deviceId);
+    if (!validation.ok) {
+      console.error(`[SUBMIT_EXIT] ${validation.code}`);
       return NextResponse.json(
-        { code: "SUBMIT_003", message: "This form is still in draft." },
-        { status: 403 }
+        { code: validation.code, message: validation.message },
+        { status: validation.status }
       );
     }
 
-    if (status === "expired") {
-      console.error("[SUBMIT_004] form expired");
-      console.error("[SUBMIT_EXIT]", "SUBMIT_004");
-      return NextResponse.json(
-        { code: "SUBMIT_004", message: "This form has expired." },
-        { status: 403 }
-      );
-    }
-
-    if (status === "limit_reached") {
-      console.error("[SUBMIT_005] response limit reached");
-      console.error("[SUBMIT_EXIT]", "SUBMIT_005");
-      return NextResponse.json(
-        { code: "SUBMIT_005", message: "This form has reached its response limit." },
-        { status: 403 }
-      );
-    }
-
-    // --- Conditional duplicate-submission check (per device) ---
-    // Only enforced when the form owner's profile setting enables it.
-    if (deviceId) {
-      console.log("[SUBMIT][RESTRICT_CHECK] owner_id", form.owner_id);
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("restrict_multiple_submissions")
-        .eq("id", form.owner_id)
-        .maybeSingle();
-
-      const restrictMultiple = profile?.restrict_multiple_submissions ?? false;
-      console.log("[SUBMIT][RESTRICT_CHECK] restrict_multiple_submissions", restrictMultiple);
-
-      if (restrictMultiple) {
-        const { data: existing } = await supabase
-          .from("submissions")
-          .select("id")
-          .eq("form_id", form.id)
-          .eq("device_id", deviceId)
-          .maybeSingle();
-
-        if (existing) {
-          console.error("[SUBMIT_014] duplicate device submission blocked", { formId: form.id, deviceId });
-          console.error("[SUBMIT_EXIT]", "SUBMIT_014");
-          return NextResponse.json(
-            { code: "SUBMIT_014", message: "You have already submitted this form" },
-            { status: 403 }
-          );
-        }
-      }
-    }
-
+    // ═══════════════════════════════════════════════════════════════
+    // STEP 5 — Load fields and build payload (no DB writes yet)
+    // ═══════════════════════════════════════════════════════════════
     const fields = await loadFormFields(supabase, form.id);
     console.log("[SUBMIT][FIELDS_LOADED]");
     console.log(
@@ -392,21 +413,58 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Insert submission with application-generated UUID
-    const submissionInsertPayload = {
+    // ═══════════════════════════════════════════════════════════════
+    // STEP 6 — Atomic increment response_count with limit check
+    // ═══════════════════════════════════════════════════════════════
+    // The RPC locks the form row with SELECT ... FOR UPDATE, reads
+    // response_count & response_limit, rejects if limit reached,
+    // otherwise increments — all in a single atomic operation.
+    //
+    // This eliminates the TOCTOU race condition between the
+    // application-level limit check and the increment step.
+    console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=POST query=increment_form_response_count_rpc table=forms formId");
+    const incrementResult = await supabase.rpc("increment_form_response_count_rpc", { form_id: form.id });
+
+    if (incrementResult.error) {
+      console.error("[SUBMIT][INCREMENT_FAILED]", incrementResult.error);
+      console.error("[SUBMIT_EXIT]", "SUBMIT_012");
+      return NextResponse.json(
+        { code: "SUBMIT_012", message: "We couldn't submit this response." },
+        { status: 500 }
+      );
+    }
+
+    const incrementAccepted = incrementResult.data as boolean | null;
+
+    if (incrementAccepted === false) {
+      // RPC rejected: response_limit already reached
+      console.error("[SUBMIT_EXIT]", "SUBMIT_005");
+      return NextResponse.json(
+        { code: "SUBMIT_005", message: "This form has reached its response limit." },
+        { status: 403 }
+      );
+    }
+
+    console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=POST query=increment_form_response_count_rpc table=forms success");
+
+    // ═══════════════════════════════════════════════════════════════
+    // STEP 7 — Insert submission (count already claimed atomically)
+    // ═══════════════════════════════════════════════════════════════
+    // The count has already been incremented. If the submission or
+    // answers insert fails, we must decrement to avoid drift.
+    console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=POST query=submissions_insert table=submissions");
+    const submissionInsert = await supabase.from("submissions").insert({
       id: submissionId,
       form_id: form.id,
       device_id: deviceId,
       submitted_by_user_id: null,
-    };
-
-    console.log("[SUBMISSION_INSERT_PAYLOAD]", submissionInsertPayload);
-    console.log("[SUBMIT] file=app/api/forms/submit/route.ts function=POST query=submissions_insert table=submissions");
-    const submissionInsert = await supabase.from("submissions").insert(submissionInsertPayload);
+    });
     console.log("[SUBMISSION_INSERT_RESULT]", submissionInsert);
 
     if (submissionInsert.error) {
+      // Roll back the count — submission didn't actually get created
       console.error("[SUBMIT_008] submission insert failed", submissionInsert.error);
+      await supabase.rpc("decrement_form_response_count_rpc", { form_id: form.id });
       console.error("[SUBMIT_EXIT]", "SUBMIT_008");
       return NextResponse.json(
         { code: "SUBMIT_008", message: "We couldn't save this response." },
@@ -428,6 +486,8 @@ export async function POST(request: NextRequest) {
         console.error("[SUBMIT_011] submission_answers insert failed", answersInsert.error);
         console.error("[SUBMIT_EXIT]", "SUBMIT_011");
         await rollbackSubmissionWrites(supabase, submissionId);
+        // Count was already incremented — roll it back since the submission is gone
+        await supabase.rpc("decrement_form_response_count_rpc", { form_id: form.id });
         return NextResponse.json(
           { code: "SUBMIT_011", message: "We couldn't save this response." },
           { status: 400 }

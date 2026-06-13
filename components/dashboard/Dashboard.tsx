@@ -720,7 +720,7 @@ function CreateFormModalContent({
 }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [isPublic, setIsPublic] = useState(false);
+  const [isPublic, setIsPublic] = useState(true);
   const [responseLimit, setResponseLimit] = useState("");
   const [oneSubmissionPerPerson, setOneSubmissionPerPerson] = useState(false);
   const [expiresAt, setExpiresAt] = useState("");
@@ -925,9 +925,11 @@ function CreateFormModalContent({
       ) : isStep2 ? (
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
           <StepFormRules
+            isPublic={isPublic}
             responseLimit={responseLimit}
             oneSubmissionPerPerson={oneSubmissionPerPerson}
             expiresAt={expiresAt}
+            onIsPublicChange={setIsPublic}
             onResponseLimitChange={setResponseLimit}
             onOneSubmissionPerPersonChange={setOneSubmissionPerPerson}
             onExpiresAtChange={setExpiresAt}
@@ -938,7 +940,6 @@ function CreateFormModalContent({
           <StepBasicInfo
             title={title}
             description={description}
-            isPublic={isPublic}
             titleError={titleError}
             onTitleChange={(value) => {
               setTitle(value);
@@ -947,7 +948,6 @@ function CreateFormModalContent({
               }
             }}
             onDescriptionChange={setDescription}
-            onIsPublicChange={setIsPublic}
           />
         </div>
       )}
@@ -1035,7 +1035,15 @@ function CreateFormSubmissionStep({
       <input type="hidden" name="expiresAt" value={expiresAt} />
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
-        <StepReview title={title} description={description} isPublic={isPublic} fields={fields} />
+        <StepReview
+          title={title}
+          description={description}
+          isPublic={isPublic}
+          fields={fields}
+          responseLimit={responseLimit}
+          oneSubmissionPerPerson={oneSubmissionPerPerson}
+          expiresAt={expiresAt}
+        />
       </div>
 
       <footer className="shrink-0 border-t border-[var(--border)] px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5">
